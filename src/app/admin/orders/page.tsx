@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
-import { collection, query, getDocs, orderBy, doc, getDoc, Timestamp, updateDoc } from 'firebase/firestore'; // Import Timestamp and updateDoc
+import { collection, query, getDocs, orderBy, doc, getDoc, Timestamp, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore'; // Import Timestamp, updateDoc, addDoc, serverTimestamp
 import { db } from '@/lib/firebase/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -31,7 +31,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"; // Import AlertDialog components
 import { useToast } from '@/hooks/use-toast'; // Import useToast
-import type { CartItem } from '@/types'; // Assuming CartItem usage if viewing order details
+import type { CartItem, Notification } from '@/types'; // Assuming CartItem usage if viewing order details, Import Notification
 
 interface Order {
   id: string;
@@ -118,6 +118,14 @@ export default function AdminOrdersPage() {
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
     setUpdatingOrderId(orderId); // Set loading state for this specific order
+    const orderToUpdate = orders.find(o => o.id === orderId);
+
+    if (!orderToUpdate) {
+        toast({ title: "Error", description: "Order not found.", variant: "destructive" });
+        setUpdatingOrderId(null);
+        return;
+    }
+
     try {
       const orderDocRef = doc(db, 'orders', orderId);
       await updateDoc(orderDocRef, { status: newStatus });
@@ -133,6 +141,31 @@ export default function AdminOrdersPage() {
         title: "Order Updated",
         description: `Order status changed to ${newStatus}.`,
       });
+
+      // Send notification to the user
+      if (newStatus === 'Delivered' || newStatus === 'Cancelled') {
+         try {
+             const notificationMessage = newStatus === 'Delivered'
+                ? `Your order #${orderId.substring(0, 6)}... has been delivered!`
+                : `Your order #${orderId.substring(0, 6)}... has been cancelled.`;
+
+             const notificationData: Omit<Notification, 'id' | 'createdAt'> = {
+                 userId: orderToUpdate.userId,
+                 message: notificationMessage,
+                 type: 'order_update',
+                 link: '/dashboard/orders', // Link to user's order page
+                 read: false,
+                 createdAt: serverTimestamp(),
+             };
+             await addDoc(collection(db, "notifications"), notificationData);
+             console.log(`Notification sent to user ${orderToUpdate.userId} for order ${orderId}`);
+         } catch (notificationError) {
+             console.error("Error sending order status notification:", notificationError);
+             // Optionally show a toast, but the main action (order update) succeeded
+             // toast({ title: "Notification Error", description: "Could not send update notification to user.", variant: "destructive" });
+         }
+      }
+
     } catch (error) {
       console.error("Error updating order status:", error);
       toast({
@@ -252,7 +285,7 @@ export default function AdminOrdersPage() {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Confirm Delivery</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Are you sure you want to mark order {order.id.substring(0,8)}... as Delivered?
+                                    Are you sure you want to mark order {order.id.substring(0,8)}... as Delivered? This will notify the user.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -282,7 +315,7 @@ export default function AdminOrdersPage() {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Confirm Cancellation</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Are you sure you want to mark order {order.id.substring(0,8)}... as Cancelled? This action cannot be undone.
+                                    Are you sure you want to mark order {order.id.substring(0,8)}... as Cancelled? This action cannot be undone and will notify the user.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>

@@ -7,7 +7,7 @@ export interface Product {
   price: number;
   imageUrl: string;
   imageHint: string; // For AI image generation hint
-  createdAt?: Timestamp | Date | null; // Optional: Timestamp of creation
+  createdAt?: Timestamp | Date | null; // Allow null or undefined if not set yet
 }
 
 export interface CartItem extends Product {
@@ -22,7 +22,7 @@ export interface UserProfile {
     // Use `Timestamp | Date | null` as Firestore timestamp might not be set immediately
     // on client-side creation before server timestamp resolves.
     // It will be `Timestamp` when read from Firestore, `Date` after `.toDate()`,
-    // and potentially `null` if read before the server timestamp is applied.
+    // and potentially `null` if read before the server timestamp is applied or if field is optional.
     createdAt: Timestamp | Date | null;
     isAdmin: boolean;
     // Add other profile fields like address, phone number etc. if needed
@@ -44,8 +44,9 @@ export interface Notification {
     id: string; // Firestore document ID
     userId: string; // Target user ID ('all' or specific UID, 'admin' for admin-only)
     message: string;
+    // Add 'order_update' type
     type: 'order_update' | 'promotion' | 'system_alert' | 'admin_action' | 'general';
-    link?: string; // Optional link (e.g., to an order)
+    link?: string; // Optional link (e.g., to an order page like '/dashboard/orders')
     read: boolean;
-    createdAt: Timestamp | Date | null; // Timestamp of creation
+    createdAt: Timestamp | Date | null; // Use Timestamp | Date | null
 }
