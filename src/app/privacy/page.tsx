@@ -1,7 +1,11 @@
 "use client";
 
+"use client";
+
 import { motion } from 'framer-motion';
 import { Shield, UserCheck, Database, Mail } from 'lucide-react';
+import Link from 'next/link'; // ✅ This line fixes the build error
+
 
 export default function PrivacyPolicyPage() {
   const fadeIn = {

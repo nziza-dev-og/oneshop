@@ -2,6 +2,8 @@
 
 import { motion } from 'framer-motion';
 import { Truck, Clock, MapPin, Package } from 'lucide-react';
+import { Button } from '@/components/ui/button'; 
+import Link from 'next/link'; // ✅ Use this instead
 
 export default function ShippingInfoPage() {
   const fadeIn = {

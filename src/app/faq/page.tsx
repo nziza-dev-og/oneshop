@@ -3,6 +3,8 @@
 import { motion } from 'framer-motion';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { HelpCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button'; // Import Button component
+import Link from 'next/link'; // Import Link component
 
 const faqs = [
   {
