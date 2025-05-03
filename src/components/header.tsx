@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { ShoppingBag, LogIn, UserPlus, User, LogOut, ShieldCheck, LayoutDashboard } from 'lucide-react'; // Added LayoutDashboard
+import { ShoppingBag, LogIn, UserPlus, User, LogOut, ShieldCheck, LayoutDashboard, Info, Mail } from 'lucide-react'; // Added Info, Mail
 import { CartSheet } from '@/components/cart-sheet';
 import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { NotificationDropdown } from '@/components/notification-dropdown'; // Import NotificationDropdown
+import { Separator } from "@/components/ui/separator";
 
 export function Header() {
   const { user, loading, isAdmin } = useAuth();
@@ -48,15 +49,30 @@ export function Header() {
           <span className="text-xl font-bold text-primary">ShopEasy</span>
         </Link>
 
-        <div className="flex items-center gap-2 md:gap-4"> {/* Adjusted gap */}
+        <nav className="flex items-center gap-1 md:gap-2"> {/* Adjusted gap */}
+          {/* Navigation Icons */}
+           <Link href="/about" passHref>
+              <Button variant="ghost" size="icon" aria-label="About Us">
+                  <Info className="h-5 w-5" />
+              </Button>
+           </Link>
+            <Link href="/contact" passHref>
+               <Button variant="ghost" size="icon" aria-label="Contact Us">
+                   <Mail className="h-5 w-5" />
+               </Button>
+            </Link>
+
+           <Separator orientation="vertical" className="h-6 mx-1 md:mx-2" /> {/* Separator */}
+
+
           {loading ? (
             <div className="h-10 w-24 animate-pulse rounded-md bg-muted"></div> // Skeleton loader
           ) : user ? (
             <>
              {isAdmin && (
                 <Link href="/admin"> {/* Link to Admin Overview */}
-                  <Button variant="ghost" size="sm" className="hidden sm:inline-flex"> {/* Hide on small screens */}
-                    <ShieldCheck className="mr-2 h-4 w-4" /> Admin
+                  <Button variant="ghost" size="icon" className="hidden sm:inline-flex" aria-label="Admin Panel"> {/* Hide on small screens */}
+                    <ShieldCheck className="h-5 w-5" />
                   </Button>
                 </Link>
               )}
@@ -107,20 +123,23 @@ export function Header() {
           ) : (
             <>
               <Link href="/login">
-                <Button variant="ghost" size="sm">
-                  <LogIn className="mr-2 h-4 w-4" /> Login
-                </Button>
+                 <Button variant="ghost" size="sm">
+                    <LogIn className="mr-2 h-4 w-4" /> Login
+                 </Button>
               </Link>
-              <Link href="/register">
-                <Button variant="outline" size="sm">
-                  <UserPlus className="mr-2 h-4 w-4" /> Register
-                </Button>
-              </Link>
+               <Link href="/register">
+                 <Button variant="outline" size="sm">
+                    <UserPlus className="mr-2 h-4 w-4" /> Register
+                 </Button>
+               </Link>
             </>
           )}
           <CartSheet />
-        </div>
+        </nav>
       </div>
     </header>
   );
 }
+
+// Helper component (optional, depends on project structure)
+// Removed the import of Separator again as it was already imported above
