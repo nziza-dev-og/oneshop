@@ -1,0 +1,68 @@
+import type { Product } from '@/types';
+
+export const mockProducts: Product[] = [
+  {
+    id: 'prod_1',
+    name: 'EcoComfort T-Shirt',
+    description: 'A comfortable and sustainable t-shirt made from organic cotton.',
+    price: 24.99,
+    imageUrl: 'https://picsum.photos/seed/shirt/400/300',
+    imageHint: 'plain t-shirt fashion',
+  },
+  {
+    id: 'prod_2',
+    name: 'Urban Explorer Backpack',
+    description: 'Durable and stylish backpack, perfect for city commutes or weekend trips.',
+    price: 79.95,
+    imageUrl: 'https://picsum.photos/seed/backpack/400/300',
+    imageHint: 'modern backpack city',
+  },
+  {
+    id: 'prod_3',
+    name: 'Wireless Noise-Cancelling Headphones',
+    description: 'Immersive sound experience with active noise cancellation.',
+    price: 149.00,
+    imageUrl: 'https://picsum.photos/seed/headphones/400/300',
+    imageHint: 'wireless headphones lifestyle',
+  },
+  {
+    id: 'prod_4',
+    name: 'Stainless Steel Water Bottle',
+    description: 'Keep your drinks cold or hot for hours. BPA-free.',
+    price: 19.50,
+    imageUrl: 'https://picsum.photos/seed/bottle/400/300',
+    imageHint: 'metal water bottle sustainable',
+  },
+  {
+    id: 'prod_5',
+    name: 'Classic Canvas Sneakers',
+    description: 'Timeless sneaker design for everyday wear.',
+    price: 55.00,
+    imageUrl: 'https://picsum.photos/seed/sneakers/400/300',
+    imageHint: 'canvas shoes footwear',
+  },
+  {
+    id: 'prod_6',
+    name: 'Aromatic Coffee Beans',
+    description: 'Premium whole bean coffee, medium roast. 12oz bag.',
+    price: 14.99,
+    imageUrl: 'https://picsum.photos/seed/coffee/400/300',
+    imageHint: 'coffee beans bag',
+  },
+   {
+    id: 'prod_7',
+    name: 'Smart Fitness Tracker',
+    description: 'Monitor your activity, heart rate, and sleep patterns.',
+    price: 99.99,
+    imageUrl: 'https://picsum.photos/seed/tracker/400/300',
+    imageHint: 'fitness tracker watch tech',
+  },
+  {
+    id: 'prod_8',
+    name: 'Handcrafted Ceramic Mug',
+    description: 'Unique, artisan-made mug for your favorite beverage.',
+    price: 29.00,
+    imageUrl: 'https://picsum.photos/seed/mug/400/300',
+    imageHint: 'ceramic mug coffee',
+  },
+];
