@@ -9,7 +9,6 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    // Keep existing remote patterns
     remotePatterns: [
       {
         protocol: 'https',
@@ -17,16 +16,14 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      { // Add pattern for i.pinimg.com
+        protocol: 'https',
+        hostname: 'i.pinimg.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
-  // Add experimental flag if needed for `fill` prop, though it should be stable now.
-  // experimental: {
-  //   images: {
-  //     allowFutureImage: true,
-  //   },
-  // },
 };
 
 export default nextConfig;
-
-      
