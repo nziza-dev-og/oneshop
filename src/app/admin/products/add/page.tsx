@@ -22,7 +22,7 @@ const productSchema = z.object({
   name: z.string().min(3, "Product name must be at least 3 characters long."),
   description: z.string().min(10, "Description must be at least 10 characters long.").max(500, "Description must be less than 500 characters."),
   price: z.coerce.number().min(0.01, "Price must be positive.").refine(val => /^\d+(\.\d{1,2})?$/.test(String(val)), { message: "Price must have up to two decimal places." }),
-  imageUrl: z.string().url("Please enter a valid image URL (e.g., from picsum.photos or similar)."),
+  imageUrl: z.string().min(1, "Please enter an image URL."), // Allow any non-empty string
    imageHint: z.string().min(2, "Image hint must be at least 2 characters.").max(50, "Image hint must be less than 50 characters."), // Hint for future AI image search
 });
 
@@ -40,7 +40,7 @@ export default function AddProductPage() {
       name: '',
       description: '',
       price: 0.00,
-      imageUrl: 'https://picsum.photos/400/300', // Default placeholder
+      imageUrl: '', // Default to empty string
       imageHint: '',
     },
   });
@@ -141,10 +141,10 @@ export default function AddProductPage() {
                 <FormItem>
                   <FormLabel>Image URL</FormLabel>
                   <FormControl>
-                    <Input placeholder="https://picsum.photos/seed/example/400/300" {...field} disabled={loading} />
+                    <Input placeholder="https://example.com/image.jpg" {...field} disabled={loading} />
                   </FormControl>
                    <FormDescription>
-                        Provide a URL for the product image. Use <a href="https://picsum.photos/" target="_blank" rel="noopener noreferrer" className="text-primary underline">picsum.photos</a> for placeholders.
+                        Provide a URL for the product image. It can be any valid image URL.
                    </FormDescription>
                   <FormMessage />
                 </FormItem>
