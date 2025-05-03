@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import Image from 'next/image';
-import { Users, Target, Eye, Sparkles } from 'lucide-react';
+import { Users, Target, Eye, Sparkles, ShieldCheck } from 'lucide-react'; // Import ShieldCheck
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function AboutPage() {
