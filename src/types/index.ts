@@ -45,8 +45,19 @@ export interface Notification {
     userId: string; // Target user ID ('all' or specific UID, 'admin' for admin-only)
     message: string;
     // Add 'order_update' type
-    type: 'order_update' | 'promotion' | 'system_alert' | 'admin_action' | 'general';
+    type: 'order_update' | 'promotion' | 'system_alert' | 'admin_action' | 'general' | 'contact_reply'; // Added contact_reply
     link?: string; // Optional link (e.g., to an order page like '/dashboard/orders')
     read: boolean;
     createdAt: Timestamp | Date | null; // Use Timestamp | Date | null
+}
+
+// Contact Message structure
+export interface ContactMessage {
+  id: string; // Firestore document ID
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  createdAt: Timestamp | Date | null;
+  status: 'new' | 'read' | 'archived'; // Status for admin management
 }

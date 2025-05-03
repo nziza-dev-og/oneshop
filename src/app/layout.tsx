@@ -2,6 +2,7 @@ import type {Metadata} from 'next';
 import { Inter } from 'next/font/google'; // Use Inter font for clean sans-serif style
 import './globals.css';
 import { Header } from '@/components/header';
+import { Footer } from '@/components/footer'; // Import Footer
 import { Toaster } from "@/components/ui/toaster"
 import { cn } from "@/lib/utils";
 import { AuthProvider } from '@/providers/auth-provider'; // Import AuthProvider
@@ -26,16 +27,14 @@ export default function RootLayout({
       <head />
       <body
         className={cn(
-          "min-h-screen bg-background font-sans antialiased",
+          "min-h-screen bg-background font-sans antialiased flex flex-col", // Ensure body is flex-col
           inter.variable
         )}
       >
         <AuthProvider> {/* Wrap content with AuthProvider */}
-          <div className="relative flex min-h-screen flex-col">
-            <Header />
-            <main className="flex-1">{children}</main>
-            {/* Footer removed from here, added to page.tsx */}
-          </div>
+          <Header />
+          <main className="flex-1">{children}</main>
+          <Footer /> {/* Add Footer here */}
           <Toaster />
         </AuthProvider>
       </body>

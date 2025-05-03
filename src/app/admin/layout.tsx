@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ShoppingBag, BarChart3, Users, Settings, LayoutDashboard, ShieldCheck, Bell, Package, PackagePlus } from "lucide-react"; // Added Package, PackagePlus
+import { ShoppingBag, BarChart3, Users, Settings, LayoutDashboard, ShieldCheck, Bell, Package, PackagePlus, MessageSquare } from "lucide-react"; // Added MessageSquare
 
 import { cn } from "@/lib/utils";
 import {
@@ -29,6 +29,7 @@ const adminMenuItems = [
   { href: "/admin/products/add", label: "Add Product", icon: PackagePlus }, // Link to add product page
   { href: "/admin/statistics", label: "Statistics", icon: BarChart3 },
   { href: "/admin/notifications", label: "Notifications", icon: Bell },
+  { href: "/admin/messages", label: "Contact Messages", icon: MessageSquare }, // Added Contact Messages link
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
