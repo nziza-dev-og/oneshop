@@ -107,7 +107,7 @@ export default function DashboardOrdersPage() {
                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                     <TableCell><Skeleton className="h-5 w-20" /></TableCell> {/* Status */}
+                     <TableCell><Skeleton className="h-5 w-20" /></TableCell>{/* Status */}
                      <TableCell>
                        <div className="flex items-center space-x-2">
                          <Skeleton className="h-10 w-10 rounded" />
