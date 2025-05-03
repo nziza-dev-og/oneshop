@@ -20,9 +20,10 @@ import { useState, useEffect } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/providers/auth-provider"; // Import useAuth
-import { db } from "@/lib/firebase/firebase"; // Import db instance
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase/firebase"; // Import db instance (needed for potential future use)
+// Removed direct Firestore imports as order creation is moved
 import { useRouter } from "next/navigation";
+import getStripe from '@/lib/stripe/client'; // Import Stripe client utility
 
 export function CartSheet() {
   const { items, removeItem, updateQuantity, clearCart, getTotalItems, getTotalPrice } = useCart();
@@ -52,52 +53,60 @@ export function CartSheet() {
   const handleCheckout = async () => {
      if (!user) {
        toast({ title: "Login Required", description: "Please log in to proceed with checkout.", variant: "destructive" });
-       // Optionally redirect to login or show login modal
        router.push('/login?redirect=/checkout'); // Redirect to login, saving checkout attempt
        return;
+     }
+     if (!items || items.length === 0) {
+        toast({ title: "Cart Empty", description: "Cannot checkout with an empty cart.", variant: "destructive" });
+        return;
      }
 
     setIsCheckingOut(true);
     try {
-      // 1. Create order document data
-      const orderData = {
-        userId: user.uid,
-        items: items.map(item => ({ // Ensure only serializable data is stored
-             id: item.id,
-             name: item.name,
-             price: item.price,
-             quantity: item.quantity,
-             imageUrl: item.imageUrl,
-             imageHint: item.imageHint,
-        })),
-        totalPrice: getTotalPrice(),
-        orderDate: serverTimestamp(), // Use server timestamp
-        // Add status, shipping details etc. later
-        status: 'Processing',
-      };
-
-      // 2. Add order to Firestore 'orders' collection
-      const docRef = await addDoc(collection(db, "orders"), orderData);
-
-      // 3. Clear the cart
-      clearCart();
-
-      // 4. Show success message
-      toast({
-        title: "Checkout Successful!",
-        description: `Your order #${docRef.id.substring(0, 8)} has been placed.`,
-        variant: 'default',
+      // 1. Call the API route to create a Stripe Checkout Session
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ items, userId: user.uid }), // Send cart items and user ID
       });
 
-      // 5. Redirect to the user's order history page within the dashboard
-       router.push('/dashboard/orders'); // Redirect to dashboard orders page
+      if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create checkout session');
+      }
 
+      const { sessionId } = await response.json();
 
-    } catch (error) {
+      if (!sessionId) {
+          throw new Error('Invalid session ID received');
+      }
+
+      // 2. Redirect to Stripe Checkout
+      const stripe = await getStripe();
+      if (!stripe) {
+          throw new Error('Stripe.js failed to load.');
+      }
+
+      const { error } = await stripe.redirectToCheckout({ sessionId });
+
+      if (error) {
+        console.error('Stripe redirect error:', error);
+        toast({
+          title: "Checkout Error",
+          description: error.message || "Failed to redirect to Stripe.",
+          variant: "destructive",
+        });
+      }
+      // If redirection is successful, the user will be taken to Stripe.
+      // Order creation will now typically happen via Stripe webhooks listening for 'checkout.session.completed'.
+
+    } catch (error: any) {
       console.error("Checkout Error:", error);
       toast({
         title: "Checkout Failed",
-        description: "There was an error placing your order. Please try again.",
+        description: error.message || "Could not initiate checkout. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -194,52 +203,15 @@ export function CartSheet() {
                 <span>Subtotal:</span>
                 <span>${isClient ? totalPrice.toFixed(2) : '0.00'}</span>
               </div>
-               <AlertDialog>
-                 <AlertDialogTrigger asChild>
-                   <Button
-                      className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-6"
-                      disabled={isCheckingOut || authLoading || !isClient || items.length === 0} // Disable if empty
-                    >
-                     {isCheckingOut ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-                     {isCheckingOut ? 'Processing...' : 'Proceed to Checkout'}
-                   </Button>
-                 </AlertDialogTrigger>
-                 <AlertDialogContent>
-                   <AlertDialogHeader>
-                     <AlertDialogTitle>Confirm Checkout</AlertDialogTitle>
-                     <AlertDialogDescription>
-                       {user
-                         ? `You are about to place an order totaling $${totalPrice.toFixed(2)}. Click 'Confirm' to complete your purchase.`
-                         : "You need to be logged in to complete the checkout. You will be redirected to the login page."}
-                     </AlertDialogDescription>
-                   </AlertDialogHeader>
-                   <AlertDialogFooter>
-                     <AlertDialogCancel disabled={isCheckingOut}>Cancel</AlertDialogCancel>
-                      {user ? (
-                         // User is logged in, show confirm button
-                         <AlertDialogAction
-                            onClick={handleCheckout}
-                            className="bg-accent text-accent-foreground hover:bg-accent/90"
-                            disabled={isCheckingOut} // Disable while processing
-                          >
-                             {isCheckingOut ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Confirm
-                          </AlertDialogAction>
-                      ) : (
-                        // User not logged in, show login redirect button
-                        <SheetClose asChild>
-                           {/* Use AlertDialogAction which implicitly closes the dialog */}
-                           <AlertDialogAction
-                              onClick={() => router.push('/login?redirect=/checkout')} // Redirect with context
-                              className="bg-primary text-primary-foreground hover:bg-primary/90"
-                           >
-                              Login to Checkout
-                           </AlertDialogAction>
-                        </SheetClose>
-                      )}
-                   </AlertDialogFooter>
-                 </AlertDialogContent>
-               </AlertDialog>
+              {/* Removed AlertDialog as logic is now simpler */}
+              <Button
+                onClick={handleCheckout} // Direct call to the simplified checkout handler
+                className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-6"
+                disabled={isCheckingOut || authLoading || !isClient || items.length === 0} // Disable if empty or loading
+              >
+                {isCheckingOut ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+                {isCheckingOut ? 'Processing...' : 'Proceed to Checkout'}
+              </Button>
                <SheetClose asChild>
                 <Button variant="outline" className="w-full" disabled={isCheckingOut}>Continue Shopping</Button>
                </SheetClose>
