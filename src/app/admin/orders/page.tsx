@@ -1,15 +1,36 @@
-"use client";
+ "use client";
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
-import { collection, query, getDocs, orderBy, doc, getDoc, Timestamp } from 'firebase/firestore'; // Import Timestamp
+import { collection, query, getDocs, orderBy, doc, getDoc, Timestamp, updateDoc } from 'firebase/firestore'; // Import Timestamp and updateDoc
 import { db } from '@/lib/firebase/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import Image from 'next/image'; // Image usage might be added later if viewing order details
+import { Button } from '@/components/ui/button'; // Import Button
+import { MoreHorizontal, CheckCircle, XCircle, Loader2 } from 'lucide-react'; // Import icons
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"; // Import AlertDialog components
+import { useToast } from '@/hooks/use-toast'; // Import useToast
 import type { CartItem } from '@/types'; // Assuming CartItem usage if viewing order details
 
 interface Order {
@@ -19,15 +40,16 @@ interface Order {
   items: CartItem[];
   totalPrice: number;
   orderDate: Date;
-  status: string; // Added status
-  // Add other order fields like shipping address etc. if needed
+  status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled'; // Updated status type
 }
 
 export default function AdminOrdersPage() {
   const { user, loading: authLoading, isAdmin } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null); // Track updating order
   const router = useRouter();
+  const { toast } = useToast(); // Initialize toast
 
   useEffect(() => {
     // Auth checks handled by layout
@@ -83,7 +105,7 @@ export default function AdminOrdersPage() {
           setOrders(fetchedOrders);
         } catch (error) {
           console.error("Error fetching orders:", error);
-          // Handle error display if needed
+          toast({ title: "Error", description: "Could not fetch orders.", variant: "destructive" });
         } finally {
           setLoading(false);
         }
@@ -92,7 +114,37 @@ export default function AdminOrdersPage() {
     } else if (!authLoading && !isAdmin) {
        // Redirect logic in layout handles non-admins
     }
-  }, [user, authLoading, isAdmin, router]); // Dependency array updated
+  }, [user, authLoading, isAdmin, router, toast]); // Dependency array updated
+
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
+    setUpdatingOrderId(orderId); // Set loading state for this specific order
+    try {
+      const orderDocRef = doc(db, 'orders', orderId);
+      await updateDoc(orderDocRef, { status: newStatus });
+
+      // Update local state immediately
+      setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order.id === orderId ? { ...order, status: newStatus } : order
+        )
+      );
+
+      toast({
+        title: "Order Updated",
+        description: `Order status changed to ${newStatus}.`,
+      });
+    } catch (error) {
+      console.error("Error updating order status:", error);
+      toast({
+        title: "Update Failed",
+        description: "Could not update order status.",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingOrderId(null); // Reset loading state
+    }
+  };
+
 
    // Skeleton loader while data is fetching
    if (loading) {
@@ -110,7 +162,7 @@ export default function AdminOrdersPage() {
                    <TableHead><Skeleton className="h-5 w-24" /></TableHead>
                    <TableHead><Skeleton className="h-5 w-16 text-right" /></TableHead>
                    <TableHead><Skeleton className="h-5 w-24 text-center" /></TableHead>
-                   {/* <TableHead><Skeleton className="h-5 w-full" /></TableHead> */}
+                    <TableHead><Skeleton className="h-5 w-10 text-right" /></TableHead> {/* Actions column */}
                  </TableRow>
                </TableHeader>
                <TableBody>
@@ -121,12 +173,7 @@ export default function AdminOrdersPage() {
                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                      <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
                      <TableCell className="text-center"><Skeleton className="h-5 w-24 mx-auto" /></TableCell>
-                     {/* <TableCell>
-                       <div className="flex items-center space-x-2">
-                         <Skeleton className="h-10 w-10 rounded" />
-                         <Skeleton className="h-5 w-32" />
-                       </div>
-                     </TableCell> */}
+                     <TableCell className="text-right"><Skeleton className="h-8 w-8" /></TableCell> {/* Actions cell */}
                    </TableRow>
                  ))}
                </TableBody>
@@ -159,7 +206,7 @@ export default function AdminOrdersPage() {
                     <TableHead className="w-[150px]">Date</TableHead>
                     <TableHead className="w-[100px] text-right">Total</TableHead>
                     <TableHead className="w-[120px] text-center">Status</TableHead>
-                    {/* Add more columns like Items count if needed */}
+                    <TableHead className="w-[80px] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -175,15 +222,83 @@ export default function AdminOrdersPage() {
                       <TableCell className="text-center">
                          <Badge
                             variant={order.status === 'Delivered' ? 'default' : order.status === 'Cancelled' ? 'destructive' : 'secondary'}
-                            className="capitalize"
+                            className={`capitalize ${order.status === 'Processing' ? 'bg-yellow-100 text-yellow-800' : ''} ${order.status === 'Shipped' ? 'bg-blue-100 text-blue-800' : ''}`}
                          >
                             {order.status}
                         </Badge>
                       </TableCell>
-                       {/* Optionally add a button/link to view order details */}
-                       {/* <TableCell className="text-right">
-                          <Button variant="ghost" size="sm">View</Button>
-                       </TableCell> */}
+                      <TableCell className="text-right">
+                       <DropdownMenu>
+                         <DropdownMenuTrigger asChild>
+                           <Button variant="ghost" className="h-8 w-8 p-0" disabled={updatingOrderId === order.id}>
+                             {updatingOrderId === order.id ? (
+                               <Loader2 className="h-4 w-4 animate-spin" />
+                             ) : (
+                               <MoreHorizontal className="h-4 w-4" />
+                             )}
+                           </Button>
+                         </DropdownMenuTrigger>
+                         <DropdownMenuContent align="end">
+                           <DropdownMenuLabel>Order Actions</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild disabled={order.status === 'Delivered' || order.status === 'Cancelled'}>
+                                 <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={order.status === 'Delivered' || order.status === 'Cancelled'}>
+                                    <CheckCircle className="mr-2 h-4 w-4" />
+                                    Mark as Delivered
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Confirm Delivery</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to mark order {order.id.substring(0,8)}... as Delivered?
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleUpdateOrderStatus(order.id, 'Delivered')}
+                                    className="bg-primary text-primary-foreground"
+                                   >
+                                    Confirm Delivery
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild disabled={order.status === 'Delivered' || order.status === 'Cancelled'}>
+                                   <DropdownMenuItem
+                                    onSelect={(e) => e.preventDefault()}
+                                    disabled={order.status === 'Delivered' || order.status === 'Cancelled'}
+                                    className="text-destructive focus:text-destructive"
+                                    >
+                                        <XCircle className="mr-2 h-4 w-4" />
+                                        Mark as Cancelled
+                                    </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Confirm Cancellation</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to mark order {order.id.substring(0,8)}... as Cancelled? This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Back</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleUpdateOrderStatus(order.id, 'Cancelled')}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                    Confirm Cancellation
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                         </DropdownMenuContent>
+                       </DropdownMenu>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -194,3 +309,5 @@ export default function AdminOrdersPage() {
     </div>
   );
 }
+
+    
