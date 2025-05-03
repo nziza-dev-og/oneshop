@@ -18,6 +18,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { NotificationDropdown } from '@/components/notification-dropdown'; // Import NotificationDropdown
 
 export function Header() {
   const { user, loading, isAdmin } = useAuth();
@@ -47,18 +48,19 @@ export function Header() {
           <span className="text-xl font-bold text-primary">ShopEasy</span>
         </Link>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4"> {/* Adjusted gap */}
           {loading ? (
             <div className="h-10 w-24 animate-pulse rounded-md bg-muted"></div> // Skeleton loader
           ) : user ? (
             <>
              {isAdmin && (
                 <Link href="/admin"> {/* Link to Admin Overview */}
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" className="hidden sm:inline-flex"> {/* Hide on small screens */}
                     <ShieldCheck className="mr-2 h-4 w-4" /> Admin
                   </Button>
                 </Link>
               )}
+               <NotificationDropdown /> {/* Add Notification Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full">
@@ -85,20 +87,15 @@ export function Header() {
                         <span>Dashboard</span>
                       </Link>
                    </DropdownMenuItem>
-                   {/* Keep profile link within dashboard context */}
-                   {/* <DropdownMenuItem asChild>
-                     <Link href="/dashboard/profile">
-                        <User className="mr-2 h-4 w-4" />
-                       <span>Profile</span>
-                     </Link>
-                   </DropdownMenuItem> */}
-                   {/* Keep orders link within dashboard context */}
-                  {/* <DropdownMenuItem asChild>
-                     <Link href="/dashboard/orders">
-                       <ShoppingBag className="mr-2 h-4 w-4" />
-                       <span>My Orders</span>
-                     </Link>
-                  </DropdownMenuItem> */}
+                   {/* Show Admin link here too for smaller screens */}
+                    {isAdmin && (
+                        <DropdownMenuItem asChild className="sm:hidden">
+                            <Link href="/admin">
+                                <ShieldCheck className="mr-2 h-4 w-4" />
+                                <span>Admin Panel</span>
+                            </Link>
+                        </DropdownMenuItem>
+                    )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout}>
                     <LogOut className="mr-2 h-4 w-4" />

@@ -37,3 +37,14 @@ export interface Order {
   status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled'; // Example statuses
   // Add shippingAddress, paymentMethod etc. if needed
 }
+
+// Notification structure
+export interface Notification {
+    id: string; // Firestore document ID
+    userId: string; // Target user ID ('all' or specific UID, 'admin' for admin-only)
+    message: string;
+    type: 'order_update' | 'promotion' | 'system_alert' | 'admin_action' | 'general';
+    link?: string; // Optional link (e.g., to an order)
+    read: boolean;
+    createdAt: Timestamp | Date | null; // Timestamp of creation
+}

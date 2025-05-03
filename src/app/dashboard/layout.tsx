@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { User, ShoppingBag, Settings, Heart, MapPin, LayoutDashboard } from "lucide-react";
+import { User, ShoppingBag, Settings, Heart, MapPin, LayoutDashboard, Bell } from "lucide-react"; // Added Bell
 
 import { cn } from "@/lib/utils";
 import {
@@ -24,6 +24,7 @@ const menuItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/profile", label: "My Profile", icon: User },
   { href: "/dashboard/orders", label: "My Orders", icon: ShoppingBag },
+  { href: "/dashboard/notifications", label: "Notifications", icon: Bell }, // Added Notifications
   { href: "/dashboard/addresses", label: "Address Book", icon: MapPin },
   { href: "/dashboard/wishlist", label: "Wishlist", icon: Heart },
   { href: "/dashboard/settings", label: "Account Settings", icon: Settings },
@@ -52,7 +53,7 @@ export default function DashboardLayout({
          <div className="w-64 border-r p-4 hidden md:block">
            <Skeleton className="h-8 w-3/4 mb-6" />
            <div className="space-y-2">
-             {[...Array(5)].map((_, i) => (
+             {[...Array(7)].map((_, i) => ( // Adjusted count for new item
                <Skeleton key={i} className="h-10 w-full" />
              ))}
            </div>
