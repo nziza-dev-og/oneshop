@@ -3,14 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
-import { collection, query, getDocs, orderBy, doc, getDoc } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, doc, getDoc, Timestamp } from 'firebase/firestore'; // Import Timestamp
 import { db } from '@/lib/firebase/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import Image from 'next/image';
-import type { CartItem } from '@/types';
+import Image from 'next/image'; // Image usage might be added later if viewing order details
+import type { CartItem } from '@/types'; // Assuming CartItem usage if viewing order details
 
 interface Order {
   id: string;
@@ -19,7 +19,8 @@ interface Order {
   items: CartItem[];
   totalPrice: number;
   orderDate: Date;
-  // Add other order fields like status, shipping address etc. if needed
+  status: string; // Added status
+  // Add other order fields like shipping address etc. if needed
 }
 
 export default function AdminOrdersPage() {
@@ -29,24 +30,12 @@ export default function AdminOrdersPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Redirect logic:
-    // 1. If auth is loading, wait.
-    // 2. If auth is done and user is not logged in, redirect to login.
-    // 3. If auth is done, user is logged in, but not admin, redirect to home.
-    // 4. If auth is done, user is logged in and is admin, proceed to fetch data.
-    if (authLoading) return;
-
-    if (!user) {
-      router.push('/login');
-    } else if (!isAdmin) {
-      router.push('/'); // Redirect non-admins away
-    } else {
-      // User is admin, fetch orders
+    // Auth checks handled by layout
+    if (!authLoading && isAdmin) {
       const fetchOrders = async () => {
         setLoading(true);
         try {
           const ordersRef = collection(db, 'orders');
-          // Query all orders, ordered by date descending
           const q = query(ordersRef, orderBy('orderDate', 'desc'));
           const querySnapshot = await getDocs(q);
 
@@ -65,14 +54,28 @@ export default function AdminOrdersPage() {
                 console.error(`Error fetching user ${data.userId}:`, userError);
             }
 
+             // Ensure orderDate is converted correctly from Firestore Timestamp
+             let orderDate: Date;
+             if (data.orderDate instanceof Timestamp) {
+               orderDate = data.orderDate.toDate();
+             } else if (data.orderDate && typeof data.orderDate.seconds === 'number') {
+               orderDate = new Timestamp(data.orderDate.seconds, data.orderDate.nanoseconds).toDate();
+             } else if (data.orderDate instanceof Date) {
+                 orderDate = data.orderDate;
+             } else {
+               console.warn(`Invalid date format for order ${orderDoc.id}:`, data.orderDate);
+               orderDate = new Date(); // Fallback
+             }
+
 
             return {
               id: orderDoc.id,
               userId: data.userId,
-              userEmail: userEmail, // Include fetched email
+              userEmail: userEmail,
               items: data.items,
               totalPrice: data.totalPrice,
-              orderDate: data.orderDate.toDate(), // Convert Timestamp to Date
+              orderDate: orderDate,
+              status: data.status || 'Processing', // Default status
             } as Order;
           });
 
@@ -86,13 +89,15 @@ export default function AdminOrdersPage() {
         }
       };
       fetchOrders();
+    } else if (!authLoading && !isAdmin) {
+       // Redirect logic in layout handles non-admins
     }
-  }, [user, authLoading, isAdmin, router]);
+  }, [user, authLoading, isAdmin, router]); // Dependency array updated
 
-   if (authLoading || loading) {
-     // Show skeleton loader while loading auth state or orders
+   // Skeleton loader while data is fetching
+   if (loading) {
      return (
-       <div className="container mx-auto px-4 py-12 md:px-6">
+        <div>
          <Skeleton className="h-8 w-1/4 mb-2" />
           <Skeleton className="h-4 w-1/2 mb-6" />
          <Card>
@@ -103,8 +108,9 @@ export default function AdminOrdersPage() {
                    <TableHead><Skeleton className="h-5 w-20" /></TableHead>
                    <TableHead><Skeleton className="h-5 w-32" /></TableHead>
                    <TableHead><Skeleton className="h-5 w-24" /></TableHead>
-                   <TableHead><Skeleton className="h-5 w-16" /></TableHead>
-                   <TableHead><Skeleton className="h-5 w-full" /></TableHead>
+                   <TableHead><Skeleton className="h-5 w-16 text-right" /></TableHead>
+                    <TableHead><Skeleton className="h-5 w-24 text-center" /></TableHead>
+                   {/* <TableHead><Skeleton className="h-5 w-full" /></TableHead> */}
                  </TableRow>
                </TableHeader>
                <TableBody>
@@ -113,13 +119,14 @@ export default function AdminOrdersPage() {
                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                     <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                     <TableCell>
+                     <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
+                     <TableCell className="text-center"><Skeleton className="h-5 w-24 mx-auto" /></TableCell>
+                     {/* <TableCell>
                        <div className="flex items-center space-x-2">
                          <Skeleton className="h-10 w-10 rounded" />
                          <Skeleton className="h-5 w-32" />
                        </div>
-                     </TableCell>
+                     </TableCell> */}
                    </TableRow>
                  ))}
                </TableBody>
@@ -130,14 +137,9 @@ export default function AdminOrdersPage() {
      );
    }
 
-  // If not loading and not admin (should have been redirected, but as fallback)
-  if (!isAdmin) {
-      return <div className="container mx-auto text-center py-12">Access Denied.</div>;
-  }
-
-
+  // If not loading and is admin (layout should ensure this)
   return (
-    <div className="container mx-auto px-4 py-12 md:px-6">
+    <div>
       <Card>
           <CardHeader>
             <CardTitle>All Customer Orders</CardTitle>
@@ -171,8 +173,12 @@ export default function AdminOrdersPage() {
                       <TableCell>{order.orderDate.toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">${order.totalPrice.toFixed(2)}</TableCell>
                       <TableCell className="text-center">
-                        {/* Implement status logic later */}
-                         <Badge variant="secondary">Processing</Badge>
+                         <Badge
+                            variant={order.status === 'Delivered' ? 'default' : order.status === 'Cancelled' ? 'destructive' : 'secondary'}
+                            className="capitalize"
+                         >
+                            {order.status}
+                        </Badge>
                       </TableCell>
                        {/* Optionally add a button/link to view order details */}
                        {/* <TableCell className="text-right">

@@ -1,7 +1,7 @@
-"use client"; // Header needs client-side auth state
+"use client";
 
 import Link from 'next/link';
-import { ShoppingBag, LogIn, UserPlus, User, LogOut, ShieldCheck } from 'lucide-react';
+import { ShoppingBag, LogIn, UserPlus, User, LogOut, ShieldCheck, LayoutDashboard } from 'lucide-react'; // Added LayoutDashboard
 import { CartSheet } from '@/components/cart-sheet';
 import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
@@ -53,7 +53,7 @@ export function Header() {
           ) : user ? (
             <>
              {isAdmin && (
-                <Link href="/admin/orders">
+                <Link href="/admin"> {/* Link to Admin Overview */}
                   <Button variant="ghost" size="sm">
                     <ShieldCheck className="mr-2 h-4 w-4" /> Admin
                   </Button>
@@ -63,7 +63,8 @@ export function Header() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={user.photoURL ?? undefined} alt={user.displayName ?? user.email ?? 'User'} />
+                      {/* Use a conditional src to avoid passing null/undefined */}
+                      {user.photoURL && <AvatarImage src={user.photoURL} alt={user.displayName ?? user.email ?? 'User'} />}
                       <AvatarFallback>{getInitials(user.email)}</AvatarFallback>
                     </Avatar>
                   </Button>
@@ -78,18 +79,26 @@ export function Header() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/profile">
-                       <User className="mr-2 h-4 w-4" />
-                      <span>Profile</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                     <Link href="/orders">
+                   <DropdownMenuItem asChild>
+                      <Link href="/dashboard"> {/* Link to User Dashboard */}
+                         <LayoutDashboard className="mr-2 h-4 w-4" />
+                        <span>Dashboard</span>
+                      </Link>
+                   </DropdownMenuItem>
+                   {/* Keep profile link within dashboard context */}
+                   {/* <DropdownMenuItem asChild>
+                     <Link href="/dashboard/profile">
+                        <User className="mr-2 h-4 w-4" />
+                       <span>Profile</span>
+                     </Link>
+                   </DropdownMenuItem> */}
+                   {/* Keep orders link within dashboard context */}
+                  {/* <DropdownMenuItem asChild>
+                     <Link href="/dashboard/orders">
                        <ShoppingBag className="mr-2 h-4 w-4" />
                        <span>My Orders</span>
                      </Link>
-                  </DropdownMenuItem>
+                  </DropdownMenuItem> */}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout}>
                     <LogOut className="mr-2 h-4 w-4" />

@@ -53,7 +53,7 @@ export function CartSheet() {
      if (!user) {
        toast({ title: "Login Required", description: "Please log in to proceed with checkout.", variant: "destructive" });
        // Optionally redirect to login or show login modal
-       router.push('/login');
+       router.push('/login?redirect=/checkout'); // Redirect to login, saving checkout attempt
        return;
      }
 
@@ -89,9 +89,8 @@ export function CartSheet() {
         variant: 'default',
       });
 
-      // 5. Optionally redirect to an order confirmation page
-      // router.push(`/order/${docRef.id}`);
-       router.push('/orders'); // Redirect to orders page
+      // 5. Redirect to the user's order history page within the dashboard
+       router.push('/dashboard/orders'); // Redirect to dashboard orders page
 
 
     } catch (error) {
@@ -142,8 +141,9 @@ export function CartSheet() {
                       <Image
                         src={item.imageUrl}
                         alt={item.name}
-                        layout="fill"
-                        objectFit="cover"
+                        fill // Use fill instead of layout="fill"
+                        style={{ objectFit: 'cover' }} // Use style object for objectFit
+                        sizes="(max-width: 768px) 20vw, 10vw" // Provide sizes attribute
                         data-ai-hint={item.imageHint}
                       />
                     </div>
@@ -196,7 +196,10 @@ export function CartSheet() {
               </div>
                <AlertDialog>
                  <AlertDialogTrigger asChild>
-                   <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-6" disabled={isCheckingOut || authLoading}>
+                   <Button
+                      className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-6"
+                      disabled={isCheckingOut || authLoading || !isClient || items.length === 0} // Disable if empty
+                    >
                      {isCheckingOut ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
                      {isCheckingOut ? 'Processing...' : 'Proceed to Checkout'}
                    </Button>
@@ -225,9 +228,13 @@ export function CartSheet() {
                       ) : (
                         // User not logged in, show login redirect button
                         <SheetClose asChild>
-                          <AlertDialogAction onClick={() => router.push('/login')} className="bg-primary text-primary-foreground hover:bg-primary/90">
-                            Login
-                          </AlertDialogAction>
+                           {/* Use AlertDialogAction which implicitly closes the dialog */}
+                           <AlertDialogAction
+                              onClick={() => router.push('/login?redirect=/checkout')} // Redirect with context
+                              className="bg-primary text-primary-foreground hover:bg-primary/90"
+                           >
+                              Login to Checkout
+                           </AlertDialogAction>
                         </SheetClose>
                       )}
                    </AlertDialogFooter>

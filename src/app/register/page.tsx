@@ -4,20 +4,23 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react'; // For loading state
+import { Loader2 } from 'lucide-react';
+
+const ADMIN_SECRET_CODE = "juleschat"; // Define the secret code for admin registration
 
 export default function RegisterPage() {
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [secretCode, setSecretCode] = useState(''); // State for secret code input
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -44,6 +47,9 @@ export default function RegisterPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
+      // Determine if the user should be an admin
+      const isAdminUser = secretCode === ADMIN_SECRET_CODE;
+
       // Update user profile (optional, Firebase Auth has email/password)
       await updateProfile(user, { displayName: displayName || null }); // Set display name if provided
 
@@ -52,12 +58,16 @@ export default function RegisterPage() {
         uid: user.uid,
         email: user.email,
         displayName: displayName || user.email, // Use display name or email
-        createdAt: new Date(),
-        isAdmin: false, // Default role
+        createdAt: serverTimestamp(), // Use server timestamp for consistency
+        isAdmin: isAdminUser, // Set admin status based on secret code
       });
 
-      toast({ title: "Registration Successful", description: "Your account has been created." });
+      toast({
+          title: "Registration Successful",
+          description: `Your account has been created.${isAdminUser ? ' You have been registered as an Admin.' : ''}`
+      });
       router.push('/'); // Redirect to home page after successful registration
+
     } catch (err: any) {
       console.error("Registration Error:", err);
       let errorMessage = "Failed to register. Please try again.";
@@ -116,6 +126,7 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
+                placeholder="Min. 6 characters"
               />
             </div>
              <div className="space-y-2">
@@ -129,6 +140,20 @@ export default function RegisterPage() {
                  disabled={loading}
                />
              </div>
+              <div className="space-y-2">
+                <Label htmlFor="secretCode">Secret Code (Optional for Admin)</Label>
+                <Input
+                  id="secretCode"
+                  type="text"
+                  placeholder="Enter admin code if applicable"
+                  value={secretCode}
+                  onChange={(e) => setSecretCode(e.target.value)}
+                  disabled={loading}
+                />
+                <p className="text-xs text-muted-foreground">
+                  If you have an admin registration code, enter it here.
+                </p>
+              </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

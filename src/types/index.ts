@@ -18,7 +18,11 @@ export interface UserProfile {
     uid: string;
     email: string | null;
     displayName: string | null;
-    createdAt: Timestamp | Date; // Can be Timestamp from Firestore or Date object
+    // Use `Timestamp | Date | null` as Firestore timestamp might not be set immediately
+    // on client-side creation before server timestamp resolves.
+    // It will be `Timestamp` when read from Firestore, `Date` after `.toDate()`,
+    // and potentially `null` if read before the server timestamp is applied.
+    createdAt: Timestamp | Date | null;
     isAdmin: boolean;
     // Add other profile fields like address, phone number etc. if needed
 }
@@ -29,7 +33,7 @@ export interface Order {
   userId: string;
   items: CartItem[]; // Store denormalized item details
   totalPrice: number;
-  orderDate: Timestamp | Date; // Firestore Timestamp or Date object
+  orderDate: Timestamp | Date | null; // Use Timestamp | Date | null
   status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled'; // Example statuses
   // Add shippingAddress, paymentMethod etc. if needed
 }

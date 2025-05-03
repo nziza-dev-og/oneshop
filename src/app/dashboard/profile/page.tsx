@@ -14,21 +14,22 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export default function ProfilePage() {
+// Renamed function to avoid conflict if importing from old path
+export default function DashboardProfilePage() {
   const { user, loading: authLoading } = useAuth();
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState(''); // Email display only, not editable here
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
-  const router = useRouter();
+  const router = useRouter(); // Keep router if needed for other actions, remove if unused
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login'); // Redirect if not logged in
-    } else if (user) {
+    // Authentication check is now handled by the dashboard layout
+    if (user) {
       // Fetch user data from Firestore to get potentially updated display name
       const fetchUserData = async () => {
+        setFetching(true); // Start fetching state
         try {
           const userDocRef = doc(db, 'users', user.uid);
           const userDocSnap = await getDoc(userDocRef);
@@ -40,6 +41,8 @@ export default function ProfilePage() {
              // Fallback to Auth profile data if Firestore doc doesn't exist
              setDisplayName(user.displayName || '');
              setEmail(user.email || '');
+             // Consider creating the Firestore doc here if it's missing
+             console.warn(`Firestore document missing for user ${user.uid}`);
           }
         } catch (error) {
           console.error("Error fetching user data:", error);
@@ -48,22 +51,28 @@ export default function ProfilePage() {
            setEmail(user.email || '');
            toast({ title: "Error", description: "Could not fetch profile details.", variant: "destructive"});
         } finally {
-          setFetching(false);
+          setFetching(false); // End fetching state
         }
       };
       fetchUserData();
+    } else if (!authLoading && !user) {
+       // Redirect logic remains in layout, this is a fallback
+       router.push('/login');
     }
-  }, [user, authLoading, router, toast]);
+  }, [user, authLoading, toast, router]); // Removed router from dependencies if not used for redirection
 
 
   const handleUpdateProfile = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !auth.currentUser) { // Added check for auth.currentUser
+        toast({ title: "Error", description: "User not found.", variant: "destructive" });
+        return;
+    }
 
     setLoading(true);
     try {
       // Update Firebase Auth profile
-      await updateProfile(auth.currentUser!, { displayName: displayName || null });
+      await updateProfile(auth.currentUser, { displayName: displayName || null });
 
       // Update Firestore document
       const userDocRef = doc(db, 'users', user.uid);
@@ -72,6 +81,9 @@ export default function ProfilePage() {
       });
 
       toast({ title: "Profile Updated", description: "Your profile has been successfully updated." });
+      // Manually update user state in AuthProvider or trigger a refresh if necessary
+      // This might involve refetching user data or updating the context state directly
+
     } catch (error) {
       console.error("Profile Update Error:", error);
       toast({ title: "Update Failed", description: "Could not update your profile. Please try again.", variant: "destructive" });
@@ -80,13 +92,13 @@ export default function ProfilePage() {
     }
   };
 
-  if (authLoading || fetching) {
+  // Loading state handled by dashboard layout, but keep skeleton for fetching data
+  if (fetching) {
     return (
-      <div className="container mx-auto px-4 py-12 md:px-6">
-        <Card className="w-full max-w-2xl mx-auto">
+       <Card>
           <CardHeader>
-             <Skeleton className="h-8 w-1/4 mb-2" />
-             <Skeleton className="h-4 w-1/2" />
+             <Skeleton className="h-8 w-1/3 mb-2" />
+             <Skeleton className="h-4 w-2/3" />
           </CardHeader>
           <CardContent className="space-y-6">
              <div className="space-y-2">
@@ -99,18 +111,16 @@ export default function ProfilePage() {
              </div>
              <Skeleton className="h-10 w-24" />
           </CardContent>
-        </Card>
-      </div>
+       </Card>
     );
   }
 
+   // User check also handled by layout, but kept as a safeguard
    if (!user) {
-     // Should be redirected, but show message just in case
-     return <div className="container mx-auto text-center py-12">Please log in to view your profile.</div>;
+     return <div>Loading user data or redirecting...</div>;
    }
 
   return (
-    <div className="container mx-auto px-4 py-12 md:px-6">
       <Card className="w-full max-w-2xl mx-auto shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl font-bold">My Profile</CardTitle>
@@ -147,6 +157,5 @@ export default function ProfilePage() {
           </form>
         </CardContent>
       </Card>
-    </div>
   );
 }

@@ -32,9 +32,11 @@ export function ProductCard({ product }: ProductCardProps) {
           <Image
             src={product.imageUrl}
             alt={product.name}
-            layout="fill"
-            objectFit="cover"
+            fill // Use fill instead of layout="fill"
+            style={{ objectFit: 'cover' }} // Use style object for objectFit
+            sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 23vw" // Provide sizes attribute
             data-ai-hint={product.imageHint}
+            priority={product.id.endsWith('1') || product.id.endsWith('2')} // Prioritize loading first few images
           />
         </div>
       </CardHeader>

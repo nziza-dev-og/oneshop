@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -18,19 +18,20 @@ interface Order {
   items: CartItem[];
   totalPrice: number;
   orderDate: Date;
-  // Add other order fields like status, shipping address etc. if needed
+  status: string; // Added status field
+  // Add other order fields like shipping address etc. if needed
 }
 
-export default function OrdersPage() {
+// Renamed function
+export default function DashboardOrdersPage() {
   const { user, loading: authLoading } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  const router = useRouter(); // Keep router if needed, remove if unused
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login'); // Redirect if not logged in
-    } else if (user) {
+    // Auth check handled by layout
+    if (user) {
       const fetchOrders = async () => {
         setLoading(true);
         try {
@@ -40,13 +41,28 @@ export default function OrdersPage() {
           const querySnapshot = await getDocs(q);
           const fetchedOrders = querySnapshot.docs.map(doc => {
             const data = doc.data();
+             // Ensure orderDate is converted correctly from Firestore Timestamp
+             let orderDate: Date;
+             if (data.orderDate instanceof Timestamp) {
+               orderDate = data.orderDate.toDate();
+             } else if (data.orderDate && typeof data.orderDate.seconds === 'number') {
+               // Handle cases where it might be a plain object with seconds/nanoseconds
+               orderDate = new Timestamp(data.orderDate.seconds, data.orderDate.nanoseconds).toDate();
+             } else if (data.orderDate instanceof Date) {
+                orderDate = data.orderDate; // Already a Date object
+             }
+             else {
+               console.warn(`Invalid date format for order ${doc.id}:`, data.orderDate);
+               orderDate = new Date(); // Fallback to current date
+             }
+
             return {
               id: doc.id,
               userId: data.userId,
               items: data.items,
               totalPrice: data.totalPrice,
-              // Convert Firestore Timestamp to JS Date
-              orderDate: data.orderDate.toDate(),
+              orderDate: orderDate,
+              status: data.status || 'Processing', // Default to 'Processing' if status is missing
             } as Order;
           });
           setOrders(fetchedOrders);
@@ -58,16 +74,20 @@ export default function OrdersPage() {
         }
       };
       fetchOrders();
+    } else if (!authLoading) {
+        // Redirect logic remains in layout, this is a fallback
+       router.push('/login');
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router]); // Removed router if unused
 
-   if (authLoading || loading) {
+   // Loading state handled by dashboard layout, but keep skeleton for data fetching
+   if (loading) {
      return (
-       <div className="container mx-auto px-4 py-12 md:px-6">
-         <Skeleton className="h-8 w-1/4 mb-6" />
+        <div>
+         <Skeleton className="h-8 w-1/3 mb-6" />
          <Card>
            <CardHeader>
-             <Skeleton className="h-6 w-1/3 mb-2" />
+             <Skeleton className="h-6 w-1/2 mb-2" />
              <Skeleton className="h-4 w-full" />
            </CardHeader>
            <CardContent>
@@ -77,6 +97,7 @@ export default function OrdersPage() {
                    <TableHead><Skeleton className="h-5 w-20" /></TableHead>
                    <TableHead><Skeleton className="h-5 w-24" /></TableHead>
                    <TableHead><Skeleton className="h-5 w-16" /></TableHead>
+                   <TableHead><Skeleton className="h-5 w-20" /></TableHead> {/* Status */}
                    <TableHead><Skeleton className="h-5 w-full" /></TableHead>
                  </TableRow>
                </TableHeader>
@@ -86,6 +107,7 @@ export default function OrdersPage() {
                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                     <TableCell><Skeleton className="h-5 w-20" /></TableCell> {/* Status */}
                      <TableCell>
                        <div className="flex items-center space-x-2">
                          <Skeleton className="h-10 w-10 rounded" />
@@ -102,13 +124,14 @@ export default function OrdersPage() {
      );
    }
 
+  // User check also handled by layout
   if (!user) {
-    return <div className="container mx-auto text-center py-12">Please log in to view your orders.</div>;
+    return <div>Loading user data or redirecting...</div>;
   }
 
   return (
-    <div className="container mx-auto px-4 py-12 md:px-6">
-      <h1 className="text-3xl font-bold mb-6">My Orders</h1>
+    <div>
+      <h1 className="text-2xl font-bold mb-6">My Orders</h1>
       {orders.length === 0 ? (
         <Card>
           <CardContent className="pt-6 text-center text-muted-foreground">
@@ -118,16 +141,21 @@ export default function OrdersPage() {
       ) : (
         <div className="space-y-6">
           {orders.map((order) => (
-            <Card key={order.id} className="overflow-hidden">
+            <Card key={order.id} className="overflow-hidden shadow-md">
               <CardHeader className="bg-muted/50 px-6 py-4">
                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                     <div>
                         <CardTitle className="text-lg">Order #{order.id.substring(0, 8)}...</CardTitle>
                         <CardDescription>
-                        Placed on: {order.orderDate.toLocaleDateString()}
+                          Placed on: {order.orderDate.toLocaleDateString()}
                         </CardDescription>
                     </div>
-                    <Badge variant="secondary" className="w-fit">Processing</Badge> {/* Placeholder status */}
+                    <Badge
+                        variant={order.status === 'Delivered' ? 'default' : order.status === 'Cancelled' ? 'destructive' : 'secondary'}
+                        className="w-fit capitalize"
+                    >
+                        {order.status}
+                    </Badge>
                  </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -149,8 +177,9 @@ export default function OrdersPage() {
                              <Image
                                src={item.imageUrl}
                                alt={item.name}
-                               layout="fill"
-                               objectFit="cover"
+                               fill // Use fill instead of layout="fill"
+                               style={{ objectFit: 'cover' }} // Use style object for objectFit
+                               sizes="(max-width: 640px) 10vw, 5vw" // Provide sizes for responsive images
                                data-ai-hint={item.imageHint}
                               />
                            </div>
