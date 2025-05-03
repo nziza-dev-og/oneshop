@@ -12,18 +12,25 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input";
+import { Input } from "@/components/ui/input"; // Keep if needed elsewhere, unused currently
 import { useCart } from '@/hooks/useCart';
 import Image from 'next/image';
-import { Trash2, ShoppingCart, Minus, Plus } from 'lucide-react';
+import { Trash2, ShoppingCart, Minus, Plus, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/providers/auth-provider"; // Import useAuth
+import { db } from "@/lib/firebase/firebase"; // Import db instance
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { useRouter } from "next/navigation";
 
 export function CartSheet() {
   const { items, removeItem, updateQuantity, clearCart, getTotalItems, getTotalPrice } = useCart();
+  const { user, loading: authLoading } = useAuth(); // Get user state
   const { toast } = useToast();
+  const router = useRouter();
   const [isClient, setIsClient] = useState(false);
+  const [isCheckingOut, setIsCheckingOut] = useState(false); // Loading state for checkout
 
   // Ensure cart state is only accessed on the client side after hydration
   useEffect(() => {
@@ -42,17 +49,62 @@ export function CartSheet() {
     }
   };
 
-  const handleCheckout = () => {
-    // Simulate checkout
-    clearCart();
-    toast({
-      title: "Checkout Successful!",
-      description: "Your order has been placed (simulation).",
-      variant: 'default', // Use accent color indirectly
-    });
-    // Close the sheet after checkout
-    // Cannot directly close Sheet from here, need user interaction or state management outside
-  }
+  const handleCheckout = async () => {
+     if (!user) {
+       toast({ title: "Login Required", description: "Please log in to proceed with checkout.", variant: "destructive" });
+       // Optionally redirect to login or show login modal
+       router.push('/login');
+       return;
+     }
+
+    setIsCheckingOut(true);
+    try {
+      // 1. Create order document data
+      const orderData = {
+        userId: user.uid,
+        items: items.map(item => ({ // Ensure only serializable data is stored
+             id: item.id,
+             name: item.name,
+             price: item.price,
+             quantity: item.quantity,
+             imageUrl: item.imageUrl,
+             imageHint: item.imageHint,
+        })),
+        totalPrice: getTotalPrice(),
+        orderDate: serverTimestamp(), // Use server timestamp
+        // Add status, shipping details etc. later
+        status: 'Processing',
+      };
+
+      // 2. Add order to Firestore 'orders' collection
+      const docRef = await addDoc(collection(db, "orders"), orderData);
+
+      // 3. Clear the cart
+      clearCart();
+
+      // 4. Show success message
+      toast({
+        title: "Checkout Successful!",
+        description: `Your order #${docRef.id.substring(0, 8)} has been placed.`,
+        variant: 'default',
+      });
+
+      // 5. Optionally redirect to an order confirmation page
+      // router.push(`/order/${docRef.id}`);
+       router.push('/orders'); // Redirect to orders page
+
+
+    } catch (error) {
+      console.error("Checkout Error:", error);
+      toast({
+        title: "Checkout Failed",
+        description: "There was an error placing your order. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
 
   return (
     <Sheet>
@@ -104,6 +156,7 @@ export function CartSheet() {
                           size="icon"
                           className="h-6 w-6"
                           onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
+                          disabled={isCheckingOut}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
@@ -113,6 +166,7 @@ export function CartSheet() {
                           size="icon"
                           className="h-6 w-6"
                           onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
+                           disabled={isCheckingOut}
                         >
                           <Plus className="h-3 w-3" />
                         </Button>
@@ -125,6 +179,7 @@ export function CartSheet() {
                          size="icon"
                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
                          onClick={() => handleQuantityChange(item.id, 0)} // Use 0 quantity to trigger removal
+                          disabled={isCheckingOut}
                        >
                          <Trash2 className="h-4 w-4" />
                        </Button>
@@ -141,29 +196,45 @@ export function CartSheet() {
               </div>
                <AlertDialog>
                  <AlertDialogTrigger asChild>
-                   <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-6">
-                     Simulate Checkout
+                   <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-6" disabled={isCheckingOut || authLoading}>
+                     {isCheckingOut ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+                     {isCheckingOut ? 'Processing...' : 'Proceed to Checkout'}
                    </Button>
                  </AlertDialogTrigger>
                  <AlertDialogContent>
                    <AlertDialogHeader>
-                     <AlertDialogTitle>Confirm Checkout Simulation</AlertDialogTitle>
+                     <AlertDialogTitle>Confirm Checkout</AlertDialogTitle>
                      <AlertDialogDescription>
-                       This is a simulation. No real payment will be processed. Clicking 'Confirm' will clear your cart and simulate a successful order.
+                       {user
+                         ? `You are about to place an order totaling $${totalPrice.toFixed(2)}. Click 'Confirm' to complete your purchase.`
+                         : "You need to be logged in to complete the checkout. You will be redirected to the login page."}
                      </AlertDialogDescription>
                    </AlertDialogHeader>
                    <AlertDialogFooter>
-                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                     <SheetClose asChild>
-                      <AlertDialogAction onClick={handleCheckout} className="bg-accent text-accent-foreground hover:bg-accent/90">
-                        Confirm
-                      </AlertDialogAction>
-                     </SheetClose>
+                     <AlertDialogCancel disabled={isCheckingOut}>Cancel</AlertDialogCancel>
+                      {user ? (
+                         // User is logged in, show confirm button
+                         <AlertDialogAction
+                            onClick={handleCheckout}
+                            className="bg-accent text-accent-foreground hover:bg-accent/90"
+                            disabled={isCheckingOut} // Disable while processing
+                          >
+                             {isCheckingOut ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Confirm
+                          </AlertDialogAction>
+                      ) : (
+                        // User not logged in, show login redirect button
+                        <SheetClose asChild>
+                          <AlertDialogAction onClick={() => router.push('/login')} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                            Login
+                          </AlertDialogAction>
+                        </SheetClose>
+                      )}
                    </AlertDialogFooter>
                  </AlertDialogContent>
                </AlertDialog>
                <SheetClose asChild>
-                <Button variant="outline" className="w-full">Continue Shopping</Button>
+                <Button variant="outline" className="w-full" disabled={isCheckingOut}>Continue Shopping</Button>
                </SheetClose>
             </SheetFooter>
           </>

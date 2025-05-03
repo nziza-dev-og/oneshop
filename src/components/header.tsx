@@ -1,8 +1,44 @@
+"use client"; // Header needs client-side auth state
+
 import Link from 'next/link';
-import { ShoppingBag } from 'lucide-react'; // Using ShoppingBag for logo
+import { ShoppingBag, LogIn, UserPlus, User, LogOut, ShieldCheck } from 'lucide-react';
 import { CartSheet } from '@/components/cart-sheet';
+import { useAuth } from '@/providers/auth-provider';
+import { Button } from '@/components/ui/button';
+import { auth } from '@/lib/firebase/firebase';
+import { signOut } from 'firebase/auth';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
 
 export function Header() {
+  const { user, loading, isAdmin } = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast({ title: "Logged Out", description: "You have been successfully logged out." });
+      router.push('/'); // Redirect to home after logout
+    } catch (error) {
+      console.error("Logout Error:", error);
+      toast({ title: "Logout Failed", description: "Could not log you out. Please try again.", variant: "destructive" });
+    }
+  };
+
+  const getInitials = (email?: string | null) => {
+    return email ? email.substring(0, 2).toUpperCase() : '??';
+  }
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between px-4 md:px-6">
@@ -10,7 +46,74 @@ export function Header() {
           <ShoppingBag className="h-6 w-6 text-primary" />
           <span className="text-xl font-bold text-primary">ShopEasy</span>
         </Link>
-        <CartSheet />
+
+        <div className="flex items-center gap-4">
+          {loading ? (
+            <div className="h-10 w-24 animate-pulse rounded-md bg-muted"></div> // Skeleton loader
+          ) : user ? (
+            <>
+             {isAdmin && (
+                <Link href="/admin/orders">
+                  <Button variant="ghost" size="sm">
+                    <ShieldCheck className="mr-2 h-4 w-4" /> Admin
+                  </Button>
+                </Link>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={user.photoURL ?? undefined} alt={user.displayName ?? user.email ?? 'User'} />
+                      <AvatarFallback>{getInitials(user.email)}</AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">{user.displayName ?? 'User'}</p>
+                      <p className="text-xs leading-none text-muted-foreground">
+                        {user.email}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile">
+                       <User className="mr-2 h-4 w-4" />
+                      <span>Profile</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                     <Link href="/orders">
+                       <ShoppingBag className="mr-2 h-4 w-4" />
+                       <span>My Orders</span>
+                     </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : (
+            <>
+              <Link href="/login">
+                <Button variant="ghost" size="sm">
+                  <LogIn className="mr-2 h-4 w-4" /> Login
+                </Button>
+              </Link>
+              <Link href="/register">
+                <Button variant="outline" size="sm">
+                  <UserPlus className="mr-2 h-4 w-4" /> Register
+                </Button>
+              </Link>
+            </>
+          )}
+          <CartSheet />
+        </div>
       </div>
     </header>
   );
