@@ -10,7 +10,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"; // Assuming chart components exist
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip } from 'recharts'; // Using recharts directly
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, ShoppingBag } from "lucide-react"; // Added ShoppingBag
 
 
 // Placeholder data - Replace with actual fetched data
@@ -190,4 +190,3 @@ export default function AdminStatisticsPage() {
 //   }
 //   return null;
 // };
-

@@ -90,7 +90,7 @@ export default function DashboardOrdersPage() {
              <Skeleton className="h-6 w-1/2 mb-2" />
              <Skeleton className="h-4 w-full" />
            </CardHeader>
-           <CardContent>
+           <CardContent className="pt-6">
              <Table>
                <TableHeader>
                  <TableRow>

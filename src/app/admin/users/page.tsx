@@ -81,7 +81,7 @@ export default function AdminUsersPage() {
                   <TableHead><Skeleton className="h-5 w-40" /></TableHead>
                   <TableHead><Skeleton className="h-5 w-24" /></TableHead>
                   <TableHead><Skeleton className="h-5 w-16" /></TableHead>
-                   <TableHead><Skeleton className="h-5 w-10" /></TableHead>
+                  <TableHead><Skeleton className="h-5 w-10" /></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

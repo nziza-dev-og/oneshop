@@ -109,7 +109,7 @@ export default function AdminOrdersPage() {
                    <TableHead><Skeleton className="h-5 w-32" /></TableHead>
                    <TableHead><Skeleton className="h-5 w-24" /></TableHead>
                    <TableHead><Skeleton className="h-5 w-16 text-right" /></TableHead>
-                    <TableHead><Skeleton className="h-5 w-24 text-center" /></TableHead>
+                   <TableHead><Skeleton className="h-5 w-24 text-center" /></TableHead>
                    {/* <TableHead><Skeleton className="h-5 w-full" /></TableHead> */}
                  </TableRow>
                </TableHeader>
