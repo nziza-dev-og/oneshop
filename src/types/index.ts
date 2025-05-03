@@ -7,6 +7,7 @@ export interface Product {
   price: number;
   imageUrl: string;
   imageHint: string; // For AI image generation hint
+  createdAt?: Timestamp | Date | null; // Optional: Timestamp of creation
 }
 
 export interface CartItem extends Product {

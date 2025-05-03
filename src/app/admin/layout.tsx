@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ShoppingBag, BarChart3, Users, Settings, LayoutDashboard, ShieldCheck, Bell } from "lucide-react"; // Added Bell
+import { ShoppingBag, BarChart3, Users, Settings, LayoutDashboard, ShieldCheck, Bell, Package, PackagePlus } from "lucide-react"; // Added Package, PackagePlus
 
 import { cn } from "@/lib/utils";
 import {
@@ -24,10 +24,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 const adminMenuItems = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/orders", label: "Manage Orders", icon: ShoppingBag },
-  { href: "/admin/statistics", label: "Statistics", icon: BarChart3 },
   { href: "/admin/users", label: "Manage Users", icon: Users },
-  { href: "/admin/notifications", label: "Notifications", icon: Bell }, // Added Notifications
-  // { href: "/admin/products", label: "Manage Products", icon: Package }, // Example: Add later if needed
+  { href: "/admin/products", label: "Manage Products", icon: Package }, // Link to product list
+  { href: "/admin/products/add", label: "Add Product", icon: PackagePlus }, // Link to add product page
+  { href: "/admin/statistics", label: "Statistics", icon: BarChart3 },
+  { href: "/admin/notifications", label: "Notifications", icon: Bell },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
@@ -58,7 +59,7 @@ export default function AdminDashboardLayout({
          <div className="w-64 border-r p-4 hidden md:block">
            <Skeleton className="h-8 w-3/4 mb-6" />
            <div className="space-y-2">
-             {[...Array(6)].map((_, i) => ( // Adjusted count
+             {[...Array(adminMenuItems.length)].map((_, i) => ( // Use dynamic length
                <Skeleton key={i} className="h-10 w-full" />
              ))}
            </div>
