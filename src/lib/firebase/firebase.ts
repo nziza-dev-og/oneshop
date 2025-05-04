@@ -7,7 +7,7 @@ import { getAnalytics, Analytics, isSupported } from "firebase/analytics"; // Ad
 
 // Your web app's Firebase configuration from environment variables
 const firebaseConfig: FirebaseOptions = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY, // Reverted to standard name
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
@@ -20,12 +20,6 @@ const firebaseConfig: FirebaseOptions = {
 const isConfigValid =
     typeof firebaseConfig.apiKey === 'string' && firebaseConfig.apiKey.length > 0 &&
     typeof firebaseConfig.projectId === 'string' && firebaseConfig.projectId.length > 0;
-
-if (!isConfigValid) {
-    console.error("Essential Firebase configuration (apiKey, projectId) is missing or invalid. Ensure NEXT_PUBLIC_FIREBASE_* environment variables are correctly set in your environment.");
-    // Depending on the desired behavior, you might throw an error here
-    // or allow the app to continue with potentially broken Firebase functionality.
-}
 
 // Initialize Firebase only if config seems present and valid
 let app: FirebaseApp | null = null;
@@ -66,7 +60,12 @@ if (isConfigValid) {
     }
 } else {
     // Handle the case where essential config is missing or invalid
-    console.warn("Firebase initialization skipped due to missing or invalid configuration.");
+    console.error("Essential Firebase configuration (apiKey, projectId) is missing or invalid. Ensure NEXT_PUBLIC_FIREBASE_* environment variables are correctly set in your environment.");
+    // Reset instances to null if config is invalid
+    app = null;
+    auth = null;
+    db = null;
+    analytics = null;
 }
 
 

@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
@@ -21,18 +22,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [firebaseReady, setFirebaseReady] = useState(false); // Track Firebase readiness
 
   useEffect(() => {
-    // Wait for Firebase auth and db to be potentially initialized
-    // This is a basic check, more robust solutions might involve explicit ready state from firebase lib
+    // Check if auth and db instances were successfully initialized
     if (auth && db) {
         setFirebaseReady(true);
     } else {
-        // Handle the case where Firebase failed to initialize
-        console.error("Firebase Auth or Firestore is not initialized. Authentication checks will not work.");
+        // Log a warning if Firebase failed to initialize (likely due to bad config)
+        console.warn("Firebase Auth or Firestore is not initialized. Authentication features will be unavailable.");
+        setFirebaseReady(false);
         setLoading(false); // Stop loading, but state remains unauthenticated
-        // Optionally show an error message to the user
+    }
+  }, []); // Run only once on mount to check initial Firebase state
+
+  useEffect(() => {
+    if (!firebaseReady) {
+        // If Firebase is not ready after the initial check, do nothing further.
+        return;
     }
 
-    if (firebaseReady && auth) { // Only subscribe if Firebase is ready and auth exists
+    // If Firebase is ready and auth exists, set up the listener
+    if (auth) {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser && db) { // Also ensure db is ready for admin check
                 setUser(firebaseUser);
@@ -58,32 +66,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         // Cleanup subscription on unmount
         return () => unsubscribe();
-    } else if (!auth) {
-        // If auth is null after initial check, set loading to false
+    } else {
+        // If auth is still null even though firebaseReady was initially true (should be rare)
         setLoading(false);
     }
   }, [firebaseReady]); // Re-run when firebaseReady changes
 
-  // Render a loading state until Firebase initialization attempt is complete
-  if (loading && !firebaseReady) {
+
+  // Render a loading state while initially checking Firebase status or waiting for auth state
+  if (loading) {
      return (
        <div className="flex min-h-screen items-center justify-center">
-            <p>Initializing authentication...</p>
+            <p>Loading...</p>
             {/* Or use a more sophisticated loading spinner */}
        </div>
       );
   }
 
-  // Potentially render an error state if firebaseReady is false after loading
-  if (!firebaseReady && !loading) {
-      return (
-          <div className="flex min-h-screen items-center justify-center p-4 text-center text-destructive">
-              Authentication service could not be initialized. Please check the configuration and try again.
-          </div>
-      );
-  }
-
-
+  // If Firebase isn't ready after loading, render children but auth features will be disabled
+  // The console warning from the first effect serves as the error indication.
   return (
     <AuthContext.Provider value={{ user, loading, isAdmin }}>
       {children}
