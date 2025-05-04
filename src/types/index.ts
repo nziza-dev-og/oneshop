@@ -61,3 +61,16 @@ export interface ContactMessage {
   createdAt: Timestamp | Date | null;
   status: 'new' | 'read' | 'archived'; // Status for admin management
 }
+
+// Address structure
+export interface Address {
+  id: string; // Firestore document ID
+  userId: string; // Link back to the user
+  street: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+  isDefault?: boolean; // Optional: Mark as default shipping/billing
+  type?: 'shipping' | 'billing' | 'both'; // Optional: Address type
+}
