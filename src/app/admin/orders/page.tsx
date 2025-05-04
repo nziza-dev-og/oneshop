@@ -63,6 +63,7 @@ export default function AdminOrdersPage() {
         try {
           const ordersRef = collection(db, 'orders');
           let q;
+          let fetchedUserName: string | null = null; // Local var for user name
 
           if (filterUserId) {
             // Query orders for a specific user
@@ -72,7 +73,8 @@ export default function AdminOrdersPage() {
                 const userDocRef = doc(db, 'users', filterUserId);
                 const userDocSnap = await getDoc(userDocRef);
                 if (userDocSnap.exists()) {
-                    setFilteredUserName(userDocSnap.data().email || `User ${filterUserId.substring(0, 6)}...`);
+                    fetchedUserName = userDocSnap.data().email || `User ${filterUserId.substring(0, 6)}...`;
+                    setFilteredUserName(fetchedUserName); // Set state after successful fetch
                 }
              } catch { /* Ignore error fetching user name */ }
           } else {
@@ -87,7 +89,7 @@ export default function AdminOrdersPage() {
             let userEmail = 'N/A';
 
              // Fetch user email from users collection if not already filtering by user
-             if (!filterUserId || data.userId !== filterUserId) {
+             if (!filterUserId) {
                  try {
                      const userDocRef = doc(db, 'users', data.userId);
                      const userDocSnap = await getDoc(userDocRef);
@@ -97,8 +99,8 @@ export default function AdminOrdersPage() {
                  } catch (userError) {
                      console.error(`Error fetching user ${data.userId}:`, userError);
                  }
-             } else if (filteredUserName) {
-                 userEmail = filteredUserName; // Use the already fetched name/email
+             } else if (fetchedUserName) { // Use the fetched username if filtering
+                 userEmail = fetchedUserName; // Use the already fetched name/email
              }
 
 
@@ -143,7 +145,7 @@ export default function AdminOrdersPage() {
         setLoading(false);
         toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
     }
-  }, [user, authLoading, isAdmin, router, toast, filterUserId, filteredUserName]); // Added filterUserId and filteredUserName
+  }, [user, authLoading, isAdmin, router, toast, filterUserId]); // Removed filteredUserName from dependency array, use local var
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
     if (!db) { // Check db
@@ -224,7 +226,7 @@ export default function AdminOrdersPage() {
                <TableHeader>
                  <TableRow>
                    <TableHead><Skeleton className="h-5 w-20" /></TableHead>
-                   <TableHead><Skeleton className="h-5 w-32" /></TableHead>
+                    {!filterUserId && <TableHead><Skeleton className="h-5 w-32" /></TableHead>}
                    <TableHead><Skeleton className="h-5 w-24" /></TableHead>
                    <TableHead><Skeleton className="h-5 w-16 text-right" /></TableHead>
                    <TableHead><Skeleton className="h-5 w-24 text-center" /></TableHead>
@@ -235,7 +237,7 @@ export default function AdminOrdersPage() {
                  {[...Array(5)].map((_, i) => (
                    <TableRow key={i}>
                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                     {!filterUserId && <TableCell><Skeleton className="h-5 w-32" /></TableCell>}
                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                      <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
                      <TableCell className="text-center"><Skeleton className="h-5 w-24 mx-auto" /></TableCell>
