@@ -43,12 +43,20 @@ export function CartSheet() {
 
   const handleQuantityChange = (productId: string, newQuantity: number) => {
     if (newQuantity < 1) {
+      // Use AlertDialog for removal confirmation
+      // Triggering this programmatically is complex, maybe keep direct removal for simplicity?
+      // For now, direct removal:
       removeItem(productId);
       toast({ title: "Item Removed", description: "Item removed from cart." });
     } else {
       updateQuantity(productId, newQuantity);
     }
   };
+
+   const handleRemoveConfirm = (productId: string) => {
+     removeItem(productId);
+     toast({ title: "Item Removed", description: "Item removed from cart." });
+   };
 
   const handleCheckout = async () => {
      if (!user) {
@@ -96,21 +104,24 @@ export function CartSheet() {
 
       console.log("[Checkout] Attempting redirectToCheckout with sessionId:", sessionId); // Log before redirect
 
-      // Potential Issue: In environments like IDX previews which use iframes,
-      // redirectToCheckout might fail due to cross-origin navigation restrictions.
-      // The browser might block the iframe from redirecting the top-level window.
-      // If this error persists ("Failed to set a named property 'href' on 'Location'"),
-      // consider using Stripe Elements for an embedded checkout experience.
+      // Attempt redirection
       const { error } = await stripe.redirectToCheckout({ sessionId });
 
-      // If redirectToCheckout is successful, the code below this line might not execute as the page navigates away.
+
+      // If redirectToCheckout fails (likely in iframe environments like IDX), log the error.
       if (error) {
-        console.error('[Checkout] Stripe redirect error:', error); // Log redirect error
+        console.error('[Checkout] Stripe redirect error:', error);
         toast({
           title: "Checkout Error",
-          description: error.message || "Failed to redirect to Stripe. This might be due to the preview environment.",
+          // Provide specific guidance for IDX/iframe scenarios
+          description: error.message || "Failed to redirect to Stripe automatically. This can happen in preview environments. Please check your browser console or try in a new tab.",
           variant: "destructive",
+          duration: 10000, // Longer duration for the error message
         });
+         // Fallback: Open Stripe checkout URL in a new tab as a workaround
+         const sessionUrl = `https://checkout.stripe.com/pay/${sessionId}`;
+         console.warn(`[Checkout] Attempting to open checkout URL in new tab: ${sessionUrl}`);
+         window.open(sessionUrl, '_blank');
       } else {
         console.log("[Checkout] Redirecting to Stripe..."); // Log success if no immediate error
       }
@@ -141,14 +152,14 @@ export function CartSheet() {
           <span className="sr-only">Open Cart</span>
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-[400px] sm:w-[540px] flex flex-col">
+      <SheetContent className="w-full sm:max-w-lg flex flex-col p-0"> {/* Use full width on small, max-lg, remove padding */}
         <SheetHeader className="px-6 pt-6 pb-4">
           <SheetTitle className="text-2xl font-bold">Your Shopping Cart</SheetTitle>
         </SheetHeader>
         <Separator />
         {isClient && items.length === 0 ? (
           <div className="flex flex-col items-center justify-center flex-grow text-center p-6">
-            <ShoppingCart className="h-16 w-16 text-muted-foreground mb-4" />
+            <ShoppingCart className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
             <p className="text-lg font-semibold text-muted-foreground">Your cart is empty</p>
             <SheetClose asChild>
                <Button variant="link" className="mt-2 text-primary">Continue Shopping</Button>
@@ -156,74 +167,105 @@ export function CartSheet() {
           </div>
         ) : (
           <>
-            <ScrollArea className="flex-grow px-6 py-4">
-              <div className="space-y-4">
+            {/* Content Area */}
+            <ScrollArea className="flex-grow overflow-y-auto px-6 py-4">
+              <div className="space-y-5"> {/* Increased spacing */}
                 {isClient && items.map((item) => (
-                  <div key={item.id} className="flex items-center space-x-4">
-                    <div className="relative h-16 w-16 rounded-md overflow-hidden border">
+                  <div key={item.id} className="flex items-start space-x-4">
+                    {/* Image */}
+                    <div className="relative h-20 w-20 rounded-md overflow-hidden border flex-shrink-0">
                       <Image
                         src={item.imageUrl}
                         alt={item.name}
-                        fill // Use fill instead of layout="fill"
-                        style={{ objectFit: 'cover' }} // Use style object for objectFit
-                        sizes="(max-width: 768px) 20vw, 10vw" // Provide sizes attribute
+                        fill
+                        style={{ objectFit: 'cover' }}
+                        sizes="20vw"
                         data-ai-hint={item.imageHint}
                       />
                     </div>
-                    <div className="flex-grow">
-                      <p className="font-medium">{item.name}</p>
-                      <p className="text-sm text-muted-foreground">${item.price.toFixed(2)}</p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                          disabled={isCheckingOut}
-                        >
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <span className="text-sm w-4 text-center">{item.quantity}</span>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                           disabled={isCheckingOut}
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
+                    {/* Details & Actions */}
+                    <div className="flex-grow flex flex-col justify-between min-h-[80px]"> {/* Ensure min height */}
+                      <div>
+                        <p className="font-semibold text-base line-clamp-2">{item.name}</p>
+                        <p className="text-sm text-muted-foreground">${item.price.toFixed(2)}</p>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        {/* Quantity Controls */}
+                        <div className="flex items-center border rounded-md">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 border-r rounded-r-none"
+                            onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
+                            disabled={isCheckingOut}
+                            aria-label="Decrease quantity"
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <span className="text-sm w-8 text-center font-medium">{item.quantity}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 border-l rounded-l-none"
+                            onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
+                            disabled={isCheckingOut}
+                            aria-label="Increase quantity"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        {/* Item Total Price */}
+                        <p className="text-base font-semibold">${(item.price * item.quantity).toFixed(2)}</p>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end space-y-1">
-                       <p className="font-semibold">${(item.price * item.quantity).toFixed(2)}</p>
-                       <Button
-                         variant="ghost"
-                         size="icon"
-                         className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                         onClick={() => handleQuantityChange(item.id, 0)} // Use 0 quantity to trigger removal
-                          disabled={isCheckingOut}
-                       >
-                         <Trash2 className="h-4 w-4" />
-                       </Button>
-                    </div>
+                     {/* Remove Button */}
+                     <AlertDialog>
+                         <AlertDialogTrigger asChild>
+                             <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0 ml-2" // Added margin-left
+                                disabled={isCheckingOut}
+                                aria-label="Remove item"
+                             >
+                                <Trash2 className="h-4 w-4" />
+                             </Button>
+                         </AlertDialogTrigger>
+                         <AlertDialogContent>
+                             <AlertDialogHeader>
+                                 <AlertDialogTitle>Remove Item?</AlertDialogTitle>
+                                 <AlertDialogDescription>
+                                     Are you sure you want to remove "{item.name}" from your cart?
+                                 </AlertDialogDescription>
+                             </AlertDialogHeader>
+                             <AlertDialogFooter>
+                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                 <AlertDialogAction
+                                    onClick={() => handleRemoveConfirm(item.id)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                    Remove
+                                 </AlertDialogAction>
+                             </AlertDialogFooter>
+                         </AlertDialogContent>
+                     </AlertDialog>
                   </div>
                 ))}
               </div>
             </ScrollArea>
-            <Separator />
-            <SheetFooter className="px-6 py-4 space-y-4">
+
+            {/* Footer */}
+            <SheetFooter className="px-6 py-5 border-t bg-background mt-auto space-y-4"> {/* Ensure footer sticks */}
               <div className="flex justify-between items-center font-semibold text-lg">
-                <span>Subtotal:</span>
+                <span>Subtotal ({totalItems} items):</span>
                 <span>${isClient ? totalPrice.toFixed(2) : '0.00'}</span>
               </div>
-              {/* Removed AlertDialog as logic is now simpler */}
               <Button
-                onClick={handleCheckout} // Direct call to the simplified checkout handler
+                onClick={handleCheckout}
                 className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-6"
-                disabled={isCheckingOut || authLoading || !isClient || items.length === 0} // Disable if empty or loading
+                disabled={isCheckingOut || authLoading || !isClient || items.length === 0}
               >
-                {isCheckingOut ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+                {isCheckingOut ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ShoppingCart className="mr-2 h-5 w-5"/>}
                 {isCheckingOut ? 'Processing...' : 'Proceed to Checkout'}
               </Button>
                <SheetClose asChild>
