@@ -9,73 +9,73 @@ body {
 @layer base {
   :root {
     --background: 0 0% 100%; /* White */
-    --foreground: 0 0% 3.9%; /* Dark Gray */
+    --foreground: 0 0% 3.9%; /* Dark Gray / Black */
     --card: 0 0% 100%; /* White */
-    --card-foreground: 0 0% 3.9%; /* Dark Gray */
+    --card-foreground: 0 0% 3.9%; /* Dark Gray / Black */
     --popover: 0 0% 100%; /* White */
-    --popover-foreground: 0 0% 3.9%; /* Dark Gray */
-    --primary: 207 66% 54%; /* Blue #3498db */
+    --popover-foreground: 0 0% 3.9%; /* Dark Gray / Black */
+    --primary: 210 89% 47%; /* Amazon Blue - Adjusted for accessibility */
     --primary-foreground: 0 0% 100%; /* White */
-    --secondary: 0 0% 96.1%; /* Light Gray */
+    --secondary: 0 0% 94%; /* Lighter Gray */
     --secondary-foreground: 0 0% 9%; /* Dark Gray */
-    --muted: 0 0% 96.1%; /* Light Gray */
+    --muted: 0 0% 96.1%; /* Very Light Gray */
     --muted-foreground: 0 0% 45.1%; /* Medium Gray */
-    --accent: 145 63% 49%; /* Green #2ecc71 */
+    --accent: 35 92% 55%; /* Amazon Orange/Yellow */
     --accent-foreground: 0 0% 100%; /* White */
     --destructive: 0 84.2% 60.2%; /* Default Red */
     --destructive-foreground: 0 0% 98%; /* White */
-    --border: 0 0% 89.8%; /* Light Gray */
-    --input: 0 0% 89.8%; /* Light Gray */
-    --ring: 207 66% 54%; /* Blue #3498db */
+    --border: 0 0% 85%; /* Medium Gray Border */
+    --input: 0 0% 85%; /* Medium Gray Input Border */
+    --ring: 210 89% 47%; /* Amazon Blue */
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 0 0% 98%; /* Light background for sidebar */
+    --sidebar-foreground: 0 0% 9%; /* Dark text for sidebar */
+    --sidebar-primary: 210 89% 47%; /* Blue for active/important sidebar items */
+    --sidebar-primary-foreground: 0 0% 100%; /* White text on primary */
+    --sidebar-accent: 0 0% 92%; /* Slightly darker hover/active background */
+    --sidebar-accent-foreground: 0 0% 9%; /* Dark text on accent */
+    --sidebar-border: 0 0% 85%; /* Medium Gray border */
+    --sidebar-ring: 210 89% 47%; /* Blue ring */
   }
   .dark {
-    /* Keeping dark theme defaults for now, can be customized if needed */
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
+    /* Dark theme based on Amazon concept (less common for Amazon, but providing a contrast) */
+    --background: 240 10% 3.9%; /* Very Dark Gray/Blue */
+    --foreground: 0 0% 98%; /* Almost White */
+    --card: 240 10% 7%; /* Darker Card */
     --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
+    --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
-    --primary: 207 66% 54%; /* Blue */
-    --primary-foreground: 0 0% 100%; /* White */
-    --secondary: 0 0% 14.9%; /* Dark Gray */
-    --secondary-foreground: 0 0% 98%; /* White */
-    --muted: 0 0% 14.9%; /* Dark Gray */
-    --muted-foreground: 0 0% 63.9%; /* Light Gray */
-    --accent: 145 63% 49%; /* Green */
-    --accent-foreground: 0 0% 100%; /* White */
-    --destructive: 0 62.8% 30.6%; /* Dark Red */
-    --destructive-foreground: 0 0% 98%; /* White */
-    --border: 0 0% 14.9%; /* Dark Gray */
-    --input: 0 0% 14.9%; /* Dark Gray */
-    --ring: 207 66% 54%; /* Blue */
+    --primary: 210 89% 57%; /* Brighter Blue for Dark Mode */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 4% 16%; /* Medium Dark Gray */
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 4% 10%; /* Dark Muted */
+    --muted-foreground: 0 0% 63.9%; /* Lighter Gray Text */
+    --accent: 35 92% 60%; /* Brighter Orange/Yellow for Dark Mode */
+    --accent-foreground: 0 0% 10%; /* Dark text on Accent */
+    --destructive: 0 70% 50%; /* Darker Red */
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 4% 16%; /* Medium Dark Border */
+    --input: 240 4% 16%;
+    --ring: 210 89% 57%; /* Brighter Blue Ring */
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-background: 240 10% 7%; /* Dark sidebar */
+    --sidebar-foreground: 0 0% 98%; /* Light text */
+    --sidebar-primary: 210 89% 57%; /* Bright Blue */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 240 4% 16%; /* Dark accent */
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 240 4% 16%;
+    --sidebar-ring: 210 89% 57%;
   }
 }
 

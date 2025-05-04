@@ -104,7 +104,7 @@ export default function ProductDetailClient({ product }: ProductDetailClientProp
           </div>
 
           <motion.p
-            className="text-3xl font-semibold text-primary"
+            className="text-3xl font-semibold text-foreground" /* Adjusted price color */
             variants={fadeIn}
           >
             ${product.price.toFixed(2)}
@@ -127,10 +127,11 @@ export default function ProductDetailClient({ product }: ProductDetailClientProp
 
           {/* Action Buttons */}
           <motion.div className="flex flex-col sm:flex-row gap-4 pt-4" variants={fadeIn}>
+             {/* Updated Add to Cart button style */}
             <Button
               size="lg"
               onClick={handleAddToCart}
-              className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 text-lg"
+              className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 text-lg shadow-sm hover:shadow-md transition-shadow"
               disabled={!isClient} // Disable until client is ready
             >
               <ShoppingCart className="mr-2 h-5 w-5" /> Add to Cart
@@ -140,7 +141,7 @@ export default function ProductDetailClient({ product }: ProductDetailClientProp
               size="lg"
               onClick={handleToggleWishlist}
               className={cn(
-                 "flex items-center justify-center gap-2 text-lg",
+                 "flex items-center justify-center gap-2 text-lg border-border hover:bg-secondary", /* Adjusted outline button */
                  isWishlisted ? "border-red-500 text-red-500 hover:bg-red-500/10" : ""
               )}
               disabled={!isClient} // Disable until client is ready

@@ -62,7 +62,7 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   return (
-    <Card className="flex flex-col overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 relative group h-full">
+    <Card className="flex flex-col overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 relative group h-full border border-border/50"> {/* Added border */}
       {/* Wishlist Button - positioned top-right */}
       <Button
         variant="ghost"
@@ -94,7 +94,7 @@ export function ProductCard({ product }: ProductCardProps) {
               style={{ objectFit: 'cover' }}
               sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 23vw"
               data-ai-hint={product.imageHint}
-              priority={product.id.endsWith('1') || product.id.endsWith('2')}
+              priority={product.id.endsWith('1') || product.id.endsWith('2')} // Example priority logic
               className="transition-transform duration-300 group-hover:scale-105"
             />
           </div>
@@ -102,16 +102,21 @@ export function ProductCard({ product }: ProductCardProps) {
         <CardContent className="p-4 flex-grow">
           <CardTitle className="text-lg font-semibold mb-1 line-clamp-1 group-hover:text-primary transition-colors">{product.name}</CardTitle>
           <CardDescription className="text-sm text-muted-foreground mb-2 line-clamp-2">{product.description}</CardDescription>
-          <p className="text-lg font-bold text-primary">${product.price.toFixed(2)}</p>
+          <p className="text-lg font-bold text-foreground">${product.price.toFixed(2)}</p> {/* Adjusted price color */}
         </CardContent>
       </Link>
 
       <CardFooter className="p-4 pt-0 mt-auto flex items-center gap-2">
-        <Button onClick={handleAddToCart} className="flex-grow bg-accent text-accent-foreground hover:bg-accent/90" disabled={!isClient}>
+        {/* Updated Add to Cart button style */}
+        <Button
+          onClick={handleAddToCart}
+          className="flex-grow bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm hover:shadow-md transition-shadow"
+          disabled={!isClient}
+        >
           <ShoppingCart className="mr-2 h-4 w-4" /> Add to Cart
         </Button>
          <Link href={`/products/${product.id}`} passHref legacyBehavior>
-            <Button variant="outline" size="icon" aria-label="View Details">
+            <Button variant="outline" size="icon" aria-label="View Details" className="border-border hover:bg-secondary"> {/* Adjusted outline button */}
               <Eye className="h-4 w-4" />
             </Button>
          </Link>

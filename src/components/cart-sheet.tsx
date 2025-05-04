@@ -107,21 +107,23 @@ export function CartSheet() {
       // Attempt redirection
       const { error } = await stripe.redirectToCheckout({ sessionId });
 
-
-      // If redirectToCheckout fails (likely in iframe environments like IDX), log the error.
+      // If redirectToCheckout fails (likely in iframe environments), log the error.
       if (error) {
         console.error('[Checkout] Stripe redirect error:', error);
         toast({
           title: "Checkout Error",
-          // Provide specific guidance for IDX/iframe scenarios
+          // Provide specific guidance for iframe scenarios
           description: error.message || "Failed to redirect to Stripe automatically. This can happen in preview environments. Please check your browser console or try in a new tab.",
           variant: "destructive",
           duration: 10000, // Longer duration for the error message
         });
          // Fallback: Open Stripe checkout URL in a new tab as a workaround
-         const sessionUrl = `https://checkout.stripe.com/pay/${sessionId}`;
-         console.warn(`[Checkout] Attempting to open checkout URL in new tab: ${sessionUrl}`);
-         window.open(sessionUrl, '_blank');
+         // Check if window is defined (to avoid server-side errors)
+         if (typeof window !== 'undefined') {
+            const sessionUrl = `https://checkout.stripe.com/pay/${sessionId}`;
+            console.warn(`[Checkout] Attempting to open checkout URL in new tab: ${sessionUrl}`);
+            window.open(sessionUrl, '_blank');
+         }
       } else {
         console.log("[Checkout] Redirecting to Stripe..."); // Log success if no immediate error
       }
@@ -142,10 +144,10 @@ export function CartSheet() {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="outline" size="icon" className="relative">
+        <Button variant="outline" size="icon" className="relative border-border hover:bg-secondary"> {/* Adjusted style */}
           <ShoppingCart className="h-5 w-5" />
           {isClient && totalItems > 0 && (
-            <span className="absolute -top-2 -right-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-accent-foreground bg-accent rounded-full">
+            <span className="absolute -top-2 -right-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-primary rounded-full"> {/* Changed badge color */}
               {totalItems}
             </span>
           )}
@@ -260,16 +262,17 @@ export function CartSheet() {
                 <span>Subtotal ({totalItems} items):</span>
                 <span>${isClient ? totalPrice.toFixed(2) : '0.00'}</span>
               </div>
+               {/* Updated Checkout button style */}
               <Button
                 onClick={handleCheckout}
-                className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-6"
+                className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-6 shadow-sm hover:shadow-md transition-shadow"
                 disabled={isCheckingOut || authLoading || !isClient || items.length === 0}
               >
                 {isCheckingOut ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ShoppingCart className="mr-2 h-5 w-5"/>}
                 {isCheckingOut ? 'Processing...' : 'Proceed to Checkout'}
               </Button>
                <SheetClose asChild>
-                <Button variant="outline" className="w-full" disabled={isCheckingOut}>Continue Shopping</Button>
+                <Button variant="outline" className="w-full border-border hover:bg-secondary" disabled={isCheckingOut}>Continue Shopping</Button> {/* Adjusted outline style */}
                </SheetClose>
             </SheetFooter>
           </>
