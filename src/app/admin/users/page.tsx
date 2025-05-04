@@ -77,7 +77,7 @@ export default function AdminUsersPage() {
   if (loading) {
     return (
       <div>
-        <Skeleton className="h-8 w-1/4 mb-6" />
+        <h1 className="text-2xl font-bold mb-6"><Skeleton className="h-8 w-1/4" /></h1>
         <Card>
           <CardHeader>
             <Skeleton className="h-6 w-1/3 mb-2" />
@@ -91,7 +91,7 @@ export default function AdminUsersPage() {
                   <TableHead><Skeleton className="h-5 w-40" /></TableHead>
                   <TableHead><Skeleton className="h-5 w-24" /></TableHead>
                   <TableHead><Skeleton className="h-5 w-16" /></TableHead>
-                  <TableHead><Skeleton className="h-5 w-10" /></TableHead>
+                  <TableHead className="text-right"><Skeleton className="h-5 w-10 ml-auto" /></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -101,7 +101,7 @@ export default function AdminUsersPage() {
                     <TableCell><Skeleton className="h-5 w-40" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-10" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -160,10 +160,18 @@ export default function AdminUsersPage() {
                          </DropdownMenuTrigger>
                          <DropdownMenuContent align="end">
                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                           <DropdownMenuItem disabled>
-                                <UserIcon className="mr-2 h-4 w-4" />
-                                View Profile {/* Implement dedicated admin profile view later */}
+                           {/* Link to a future dedicated admin view of user profile */}
+                           <DropdownMenuItem asChild disabled>
+                                {/* <Link href={`/admin/users/${user.uid}`}> // Disabled for now
+                                    <UserIcon className="mr-2 h-4 w-4" />
+                                    View Profile
+                                </Link> */}
+                                <button className="w-full text-left flex items-center opacity-50 cursor-not-allowed">
+                                     <UserIcon className="mr-2 h-4 w-4" />
+                                     View Profile
+                                </button>
                            </DropdownMenuItem>
+                           {/* Link to admin orders page filtered by this user's ID */}
                            <DropdownMenuItem asChild>
                              <Link href={`/admin/orders?userId=${user.uid}`}>
                                 <ShoppingBag className="mr-2 h-4 w-4" />
@@ -172,7 +180,7 @@ export default function AdminUsersPage() {
                            </DropdownMenuItem>
                            <DropdownMenuSeparator />
                             {/* Add role change/delete actions later with confirmation dialogs */}
-                           <DropdownMenuItem className="text-destructive" disabled>
+                           <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10" disabled>
                              Delete User
                            </DropdownMenuItem>
                          </DropdownMenuContent>

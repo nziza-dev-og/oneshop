@@ -10,86 +10,97 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
-import type { CartItem } from '@/types'; // Assuming CartItem includes product details
+import type { CartItem, Order } from '@/types'; // Corrected type import
 import { useToast } from '@/hooks/use-toast'; // Import useToast
-
-interface Order {
-  id: string;
-  userId: string;
-  items: CartItem[];
-  totalPrice: number;
-  orderDate: Date;
-  status: string; // Added status field
-  // Add other order fields like shipping address etc. if needed
-}
+import { ShoppingBag } from 'lucide-react'; // Import icon for empty state
 
 // Renamed function
 export default function DashboardOrdersPage() {
   const { user, loading: authLoading } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const router = useRouter(); // Keep router if needed, remove if unused
+  const router = useRouter(); // Keep router if needed for redirecting non-logged in users
   const { toast } = useToast(); // Initialize toast
 
   useEffect(() => {
-    // Auth check handled by layout
-    if (user && db) { // Check db
-      const fetchOrders = async () => {
+    // Authentication and loading are partially handled by the layout,
+    // but we still need to wait for the user object here.
+    if (authLoading) {
+        // Wait for auth state to be determined
         setLoading(true);
-        try {
-          const ordersRef = collection(db, 'orders');
-          // Query orders for the current user, ordered by date descending
-          const q = query(ordersRef, where('userId', '==', user.uid), orderBy('orderDate', 'desc'));
-          const querySnapshot = await getDocs(q);
-          const fetchedOrders = querySnapshot.docs.map(doc => {
-            const data = doc.data();
-             // Ensure orderDate is converted correctly from Firestore Timestamp
-             let orderDate: Date;
-             if (data.orderDate instanceof Timestamp) {
-               orderDate = data.orderDate.toDate();
-             } else if (data.orderDate && typeof data.orderDate.seconds === 'number') {
-               // Handle cases where it might be a plain object with seconds/nanoseconds
-               orderDate = new Timestamp(data.orderDate.seconds, data.orderDate.nanoseconds).toDate();
-             } else if (data.orderDate instanceof Date) {
-                orderDate = data.orderDate; // Already a Date object
-             }
-             else {
-               console.warn(`Invalid date format for order ${doc.id}:`, data.orderDate);
-               orderDate = new Date(); // Fallback to current date
-             }
-
-            return {
-              id: doc.id,
-              userId: data.userId,
-              items: data.items,
-              totalPrice: data.totalPrice,
-              orderDate: orderDate,
-              status: data.status || 'Processing', // Default to 'Processing' if status is missing
-            } as Order;
-          });
-          setOrders(fetchedOrders);
-        } catch (error) {
-          console.error("Error fetching orders:", error);
-          toast({ title: "Error", description: "Could not fetch your orders.", variant: "destructive" });
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchOrders();
-    } else if (!authLoading && !user) {
-        // Redirect logic remains in layout, this is a fallback
-       router.push('/login');
-    } else if (!db) {
-        setLoading(false);
-        toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
+        return;
     }
+
+    if (!user) {
+      // If not logged in after auth check, redirect (though layout might handle this too)
+      router.push('/login?redirect=/dashboard/orders');
+      setLoading(false);
+      return;
+    }
+
+    if (!db) {
+      // Database not available
+      toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
+      setLoading(false);
+      return;
+    }
+
+    // Fetch orders for the current user
+    const fetchOrders = async () => {
+      setLoading(true);
+      try {
+        const ordersRef = collection(db, 'orders');
+        // Query orders for the current user, ordered by date descending
+        const q = query(ordersRef, where('userId', '==', user.uid), orderBy('orderDate', 'desc'));
+        const querySnapshot = await getDocs(q);
+        const fetchedOrders = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+           // Ensure orderDate is converted correctly from Firestore Timestamp
+           let orderDate: Date;
+           if (data.orderDate instanceof Timestamp) {
+             orderDate = data.orderDate.toDate();
+           } else if (data.orderDate && typeof data.orderDate.seconds === 'number') {
+             // Handle cases where it might be a plain object with seconds/nanoseconds
+             orderDate = new Timestamp(data.orderDate.seconds, data.orderDate.nanoseconds).toDate();
+           } else if (data.orderDate instanceof Date) {
+              orderDate = data.orderDate; // Already a Date object
+           }
+           else {
+             console.warn(`Invalid date format for order ${doc.id}:`, data.orderDate);
+             orderDate = new Date(); // Fallback to current date
+           }
+
+          return {
+            id: doc.id,
+            userId: data.userId,
+            items: data.items,
+            totalPrice: data.totalPrice,
+            orderDate: orderDate,
+            status: data.status || 'Processing', // Default to 'Processing' if status is missing
+            // Ensure all required fields from the Order type are included
+            stripeCheckoutSessionId: data.stripeCheckoutSessionId,
+            paymentStatus: data.paymentStatus,
+            customerEmail: data.customerEmail,
+          } as Order;
+        });
+        setOrders(fetchedOrders);
+      } catch (error) {
+        console.error("Error fetching orders:", error);
+        toast({ title: "Error", description: "Could not fetch your orders.", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
+
   }, [user, authLoading, router, toast]); // Added toast to dependencies
 
-   // Loading state handled by dashboard layout, but keep skeleton for data fetching
+   // Loading state skeleton
    if (loading) {
      return (
         <div>
-         <Skeleton className="h-8 w-1/3 mb-6" />
+         <h1 className="text-2xl font-bold mb-6"><Skeleton className="h-8 w-1/3" /></h1>
          <Card>
            <CardHeader>
              <Skeleton className="h-6 w-1/2 mb-2" />
@@ -99,43 +110,46 @@ export default function DashboardOrdersPage() {
              <Table>
                <TableHeader>
                  <TableRow>
-                   <TableHead><Skeleton className="h-5 w-20" /></TableHead>
-                   <TableHead><Skeleton className="h-5 w-24" /></TableHead>
-                   <TableHead><Skeleton className="h-5 w-16" /></TableHead>
-                   <TableHead><Skeleton className="h-5 w-20" /></TableHead> {/* Status */}
-                   <TableHead><Skeleton className="h-5 w-full" /></TableHead>
+                   <TableHead className="w-[80px] hidden sm:table-cell"></TableHead>
+                   <TableHead><Skeleton className="h-5 w-32" /></TableHead>
+                   <TableHead className="w-[100px] text-center"><Skeleton className="h-5 w-16 mx-auto" /></TableHead>
+                   <TableHead className="w-[120px] text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableHead>
+                   <TableHead className="w-[120px] text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableHead>
                  </TableRow>
                </TableHeader>
                <TableBody>
-                 {[...Array(3)].map((_, i) => (
+                 {[...Array(2)].map((_, i) => ( // Show skeleton for 2 orders
                    <TableRow key={i}>
-                     <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                     <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                     <TableCell><Skeleton className="h-5 w-20" /></TableCell>{/* Status */}
-                     <TableCell>
-                       <div className="flex items-center space-x-2">
-                         <Skeleton className="h-10 w-10 rounded" />
-                         <Skeleton className="h-5 w-32" />
-                       </div>
+                     <TableCell className="hidden sm:table-cell">
+                       <Skeleton className="h-12 w-12 rounded-md" />
                      </TableCell>
+                     <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                     <TableCell className="text-center"><Skeleton className="h-5 w-8 mx-auto" /></TableCell>
+                     <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
+                     <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
                    </TableRow>
                  ))}
                </TableBody>
              </Table>
+             <div className="border-t mt-4 pt-3 text-right font-semibold">
+                <Skeleton className="h-6 w-32 ml-auto" />
+             </div>
            </CardContent>
+            <div className="border-t bg-muted/50 px-6 py-3 text-right font-semibold">
+                <Skeleton className="h-6 w-40 ml-auto" />
+            </div>
          </Card>
        </div>
      );
    }
 
-  // User check also handled by layout
-  if (!user) {
-    return <div>Loading user data or redirecting...</div>;
+  // Handled by layout, but good fallback
+  if (!user && !authLoading) {
+    return <div className="text-center text-muted-foreground p-6">Please log in to view your orders.</div>;
   }
 
   if (!db) {
-       return <div className="text-center text-destructive">Database service is unavailable. Cannot load orders.</div>;
+       return <div className="text-center text-destructive p-6">Database service is unavailable. Cannot load orders.</div>;
   }
 
 
@@ -143,26 +157,35 @@ export default function DashboardOrdersPage() {
     <div>
       <h1 className="text-2xl font-bold mb-6">My Orders</h1>
       {orders.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6 text-center text-muted-foreground">
-            You haven't placed any orders yet.
+        <Card className="shadow-sm">
+          <CardContent className="pt-10 pb-10 text-center text-muted-foreground flex flex-col items-center justify-center space-y-3">
+             <ShoppingBag className="h-12 w-12 text-muted-foreground/50" />
+            <p className="text-lg">You haven't placed any orders yet.</p>
+            <button onClick={() => router.push('/')} className="text-primary hover:underline">
+                Start Shopping
+            </button>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-6">
           {orders.map((order) => (
-            <Card key={order.id} className="overflow-hidden shadow-md">
-              <CardHeader className="bg-muted/50 px-6 py-4">
+            <Card key={order.id} className="overflow-hidden shadow-md border border-border/50">
+              <CardHeader className="bg-muted/30 px-6 py-4 border-b">
                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                     <div>
-                        <CardTitle className="text-lg">Order #{order.id.substring(0, 8)}...</CardTitle>
-                        <CardDescription>
+                        <CardTitle className="text-lg font-semibold">Order #{order.id.substring(0, 8)}...</CardTitle>
+                        <CardDescription className="text-xs text-muted-foreground">
                           Placed on: {order.orderDate.toLocaleDateString()}
                         </CardDescription>
                     </div>
                     <Badge
                         variant={order.status === 'Delivered' ? 'default' : order.status === 'Cancelled' ? 'destructive' : 'secondary'}
-                        className="w-fit capitalize"
+                        className={`w-fit capitalize px-3 py-1 ${
+                            order.status === 'Processing' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                            order.status === 'Shipped' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                            order.status === 'Delivered' ? 'bg-green-100 text-green-800 border-green-200' :
+                            order.status === 'Cancelled' ? 'bg-red-100 text-red-800 border-red-200' : ''
+                        }`}
                     >
                         {order.status}
                     </Badge>
@@ -171,39 +194,39 @@ export default function DashboardOrdersPage() {
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[80px] hidden sm:table-cell"></TableHead>
+                    <TableRow className="bg-muted/10">
+                      <TableHead className="w-[80px] hidden sm:table-cell pl-6"></TableHead>
                       <TableHead>Product</TableHead>
                       <TableHead className="w-[100px] text-center">Quantity</TableHead>
                       <TableHead className="w-[120px] text-right">Price</TableHead>
-                      <TableHead className="w-[120px] text-right">Total</TableHead>
+                      <TableHead className="w-[120px] text-right pr-6">Total</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {order.items.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="hidden sm:table-cell">
-                           <div className="relative h-12 w-12 rounded-md overflow-hidden border">
+                      <TableRow key={item.id} className="hover:bg-muted/5">
+                        <TableCell className="hidden sm:table-cell pl-6">
+                           <div className="relative h-14 w-14 rounded-md overflow-hidden border">
                              <Image
                                src={item.imageUrl}
                                alt={item.name}
                                fill // Use fill instead of layout="fill"
                                style={{ objectFit: 'cover' }} // Use style object for objectFit
                                sizes="(max-width: 640px) 10vw, 5vw" // Provide sizes for responsive images
-                               data-ai-hint={item.imageHint}
+                               data-ai-hint={item.imageHint || 'product image'} // Add fallback hint
                               />
                            </div>
                         </TableCell>
-                        <TableCell className="font-medium">{item.name}</TableCell>
-                        <TableCell className="text-center">{item.quantity}</TableCell>
-                        <TableCell className="text-right">${item.price.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">${(item.price * item.quantity).toFixed(2)}</TableCell>
+                        <TableCell className="font-medium py-3">{item.name}</TableCell>
+                        <TableCell className="text-center py-3">{item.quantity}</TableCell>
+                        <TableCell className="text-right py-3">${item.price.toFixed(2)}</TableCell>
+                        <TableCell className="text-right py-3 pr-6">${(item.price * item.quantity).toFixed(2)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </CardContent>
-              <div className="border-t bg-muted/50 px-6 py-3 text-right font-semibold">
+              <div className="border-t bg-muted/30 px-6 py-3 text-right font-semibold text-lg">
                 Order Total: ${order.totalPrice.toFixed(2)}
               </div>
             </Card>
