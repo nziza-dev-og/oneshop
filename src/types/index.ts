@@ -25,6 +25,12 @@ export interface UserProfile {
     // and potentially `null` if read before the server timestamp is applied or if field is optional.
     createdAt: Timestamp | Date | null;
     isAdmin: boolean;
+    // Notification preferences
+    notificationPreferences?: {
+        marketing?: boolean;
+        orderUpdates?: boolean;
+        newProducts?: boolean;
+    };
     // Add other profile fields like address, phone number etc. if needed
 }
 
@@ -44,9 +50,9 @@ export interface Notification {
     id: string; // Firestore document ID
     userId: string; // Target user ID ('all' or specific UID, 'admin' for admin-only)
     message: string;
-    // Add 'order_update' type
-    type: 'order_update' | 'promotion' | 'system_alert' | 'admin_action' | 'general' | 'contact_reply'; // Added contact_reply
-    link?: string; // Optional link (e.g., to an order page like '/dashboard/orders')
+    // Add 'order_update' and 'new_product' types
+    type: 'order_update' | 'promotion' | 'system_alert' | 'admin_action' | 'general' | 'contact_reply' | 'new_product'; // Added contact_reply and new_product
+    link?: string; // Optional link (e.g., to an order page like '/dashboard/orders' or '/products/{productId}')
     read: boolean;
     createdAt: Timestamp | Date | null; // Use Timestamp | Date | null
 }

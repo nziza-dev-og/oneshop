@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, query, where, writeBatch } from 'firebase/firestore'; // Import getDocs, query, where, writeBatch
 import { db } from '@/lib/firebase/firebase'; // db might be null
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, PackagePlus } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
+import type { Notification, UserProfile } from '@/types'; // Import types
 
 // Define the Zod schema for form validation
 const productSchema = z.object({
@@ -23,10 +24,54 @@ const productSchema = z.object({
   description: z.string().min(10, "Description must be at least 10 characters long.").max(500, "Description must be less than 500 characters."),
   price: z.coerce.number().min(0.01, "Price must be positive.").refine(val => /^\d+(\.\d{1,2})?$/.test(String(val)), { message: "Price must have up to two decimal places." }),
   imageUrl: z.string().min(1, "Please enter an image URL."), // Allow any non-empty string
-   imageHint: z.string().min(2, "Image hint must be at least 2 characters.").max(50, "Image hint must be less than 50 characters."), // Hint for future AI image search
+  imageHint: z.string().min(2, "Image hint must be at least 2 characters.").max(50, "Image hint must be less than 50 characters."), // Hint for future AI image search
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
+
+// Function to send notifications to opted-in users
+const notifyUsersAboutNewProduct = async (productName: string, productId: string) => {
+    if (!db) return;
+
+    try {
+        const usersRef = collection(db, 'users');
+        // Query users who have opted-in for new product notifications
+        const q = query(usersRef, where('notificationPreferences.newProducts', '==', true));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            console.log("No users opted-in for new product notifications.");
+            return;
+        }
+
+        const batch = writeBatch(db);
+        const notificationsRef = collection(db, "notifications");
+
+        querySnapshot.forEach((userDoc) => {
+            const userData = userDoc.data() as UserProfile;
+            const notificationData: Omit<Notification, 'id' | 'createdAt'> = {
+                userId: userData.uid,
+                message: `✨ New Product Alert: Check out the new "${productName}"!`,
+                type: 'new_product',
+                link: `/products?id=${productId}`, // Link directly to the product (adjust if needed)
+                read: false,
+                createdAt: serverTimestamp(),
+            };
+            // Add each notification to the batch
+            const newNotifRef = doc(notificationsRef); // Create ref with auto-ID
+            batch.set(newNotifRef, notificationData);
+        });
+
+        // Commit the batch
+        await batch.commit();
+        console.log(`Sent new product notifications to ${querySnapshot.size} users.`);
+
+    } catch (error) {
+        console.error("Error sending new product notifications:", error);
+        // Don't block the product add process, just log the error
+    }
+};
+
 
 export default function AddProductPage() {
   const { isAdmin, loading: authLoading } = useAuth();
@@ -60,10 +105,14 @@ export default function AddProductPage() {
       // Add product to Firestore 'products' collection
       const docRef = await addDoc(collection(db, "products"), {
         ...data,
-        createdAt: serverTimestamp(), // Add a creation timestamp if needed
+        createdAt: serverTimestamp(), // Add a creation timestamp
       });
 
       toast({ title: "Product Added!", description: `"${data.name}" has been successfully added.` });
+
+      // Send notifications after product is added successfully
+      await notifyUsersAboutNewProduct(data.name, docRef.id);
+
       form.reset(); // Reset form after successful submission
       router.push('/admin/products'); // Redirect back to the product list
 

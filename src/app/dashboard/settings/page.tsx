@@ -1,10 +1,11 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/providers/auth-provider';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
-import { auth } from '@/lib/firebase/firebase'; // auth might be null
+import { auth, db } from '@/lib/firebase/firebase'; // auth and db might be null
+import { doc, getDoc, updateDoc } from 'firebase/firestore'; // Import Firestore functions
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,17 +18,8 @@ import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import type { UserProfile } from '@/types';
 
 // Zod schema for password change
 const passwordSchema = z.object({
@@ -41,12 +33,18 @@ const passwordSchema = z.object({
 
 type PasswordFormData = z.infer<typeof passwordSchema>;
 
+// Default preferences
+const defaultPreferences = {
+    marketing: false,
+    orderUpdates: true, // Default order updates to true
+    newProducts: false,
+};
+
 export default function AccountSettingsPage() {
     const { user, loading: authLoading } = useAuth();
     const [loading, setLoading] = useState(false);
-    const [reauthRequired, setReauthRequired] = useState(false);
-    const [reauthPassword, setReauthPassword] = useState('');
-    const [pendingPasswordData, setPendingPasswordData] = useState<PasswordFormData | null>(null);
+    const [prefsLoading, setPrefsLoading] = useState(true); // Separate loading state for preferences
+    const [preferences, setPreferences] = useState(defaultPreferences);
     const { toast } = useToast();
 
     const form = useForm<PasswordFormData>({
@@ -58,6 +56,60 @@ export default function AccountSettingsPage() {
         },
     });
 
+     // Fetch preferences on mount
+    useEffect(() => {
+        if (user && db) {
+            setPrefsLoading(true);
+            const userDocRef = doc(db, 'users', user.uid);
+            getDoc(userDocRef).then(docSnap => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data() as UserProfile;
+                    // Merge saved preferences with defaults
+                    setPreferences({ ...defaultPreferences, ...data.notificationPreferences });
+                } else {
+                     setPreferences(defaultPreferences); // Use defaults if no profile found
+                }
+            }).catch(error => {
+                console.error("Error fetching preferences:", error);
+                toast({ title: "Error", description: "Could not load notification preferences.", variant: "destructive" });
+                 setPreferences(defaultPreferences); // Use defaults on error
+            }).finally(() => {
+                setPrefsLoading(false);
+            });
+        } else {
+            setPrefsLoading(false); // No user or db, stop loading
+        }
+    }, [user, toast]);
+
+    const handlePreferenceChange = (prefKey: keyof typeof preferences, checked: boolean) => {
+        setPreferences(prev => ({ ...prev, [prefKey]: checked }));
+        // Immediately save the change
+        handleSavePreferences({ ...preferences, [prefKey]: checked });
+    };
+
+    const handleSavePreferences = async (newPreferences: typeof preferences) => {
+        if (!user || !db) {
+            toast({ title: "Error", description: "User not logged in or database unavailable.", variant: "destructive" });
+            return;
+        }
+        setPrefsLoading(true); // Indicate saving
+        const userDocRef = doc(db, 'users', user.uid);
+        try {
+            await updateDoc(userDocRef, {
+                notificationPreferences: newPreferences
+            }, { merge: true }); // Use merge to avoid overwriting other user data
+            // toast({ title: "Preferences Updated", description: "Your notification settings have been saved." });
+            // No toast here for instant feedback, state update handles UI change
+        } catch (error) {
+            console.error("Error saving preferences:", error);
+            toast({ title: "Save Failed", description: "Could not save notification preferences.", variant: "destructive" });
+            // Revert state if save fails? (Consider this UX)
+        } finally {
+             setPrefsLoading(false);
+        }
+    };
+
+
     const handleChangePassword: SubmitHandler<PasswordFormData> = async (data) => {
         if (!user || !auth || !auth.currentUser) {
             toast({ title: "Error", description: "User not found or auth service unavailable.", variant: "destructive" });
@@ -65,7 +117,6 @@ export default function AccountSettingsPage() {
         }
 
         setLoading(true);
-        setPendingPasswordData(data); // Store data in case re-auth is needed
 
         try {
             // Re-authenticate the user first
@@ -77,14 +128,11 @@ export default function AccountSettingsPage() {
 
             toast({ title: "Password Updated", description: "Your password has been successfully changed." });
             form.reset(); // Clear the form
-            setPendingPasswordData(null); // Clear pending data
 
         } catch (error: any) {
             console.error("Password Change Error:", error);
             if (error.code === 'auth/requires-recent-login') {
-                // This error is less common now with reauthenticate first, but handle just in case
                 toast({ title: "Action Required", description: "Please log in again to change your password.", variant: "destructive" });
-                setReauthRequired(true); // Trigger re-auth dialog (though handled above)
             } else if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                  form.setError("currentPassword", { type: "manual", message: "Incorrect current password." });
                  toast({ title: "Password Change Failed", description: "Incorrect current password.", variant: "destructive" });
@@ -94,17 +142,17 @@ export default function AccountSettingsPage() {
             }
         } finally {
             setLoading(false);
-            setReauthPassword(''); // Clear reauth password input
         }
     };
 
-    // Simplified handleReauthenticate - re-authentication is now part of the main flow
-    // If needed, this could be a separate dialog triggered by specific errors.
-
-
     if (authLoading) {
-         // You might want a skeleton loader here if preferred
-        return <div>Loading account settings...</div>;
+        // Skeleton for the whole page might be better handled in layout
+        return (
+             <div className="space-y-6">
+                <Skeleton className="h-64 w-full" />
+                <Skeleton className="h-80 w-full" />
+             </div>
+        );
     }
 
     if (!user && !authLoading) {
@@ -172,60 +220,65 @@ export default function AccountSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Re-authentication Dialog - Kept for potential future use or different error handling */}
-       {/* <AlertDialog open={reauthRequired} onOpenChange={setReauthRequired}>
-           <AlertDialogContent>
-               <AlertDialogHeader>
-                   <AlertDialogTitle>Re-authentication Required</AlertDialogTitle>
-                   <AlertDialogDescription>
-                       For your security, please enter your current password again to confirm this change.
-                   </AlertDialogDescription>
-               </AlertDialogHeader>
-               <div className="space-y-2">
-                   <Label htmlFor="reauth-password">Current Password</Label>
-                   <Input
-                       id="reauth-password"
-                       type="password"
-                       value={reauthPassword}
-                       onChange={(e) => setReauthPassword(e.target.value)}
-                   />
-               </div>
-               <AlertDialogFooter>
-                   <AlertDialogCancel onClick={() => { setPendingPasswordData(null); setReauthPassword(''); }}>Cancel</AlertDialogCancel>
-                   <AlertDialogAction onClick={handleReauthenticate} disabled={!reauthPassword || loading}>
-                       {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                       Confirm & Change Password
-                   </AlertDialogAction>
-               </AlertDialogFooter>
-           </AlertDialogContent>
-       </AlertDialog> */}
-
-
       <Card>
         <CardHeader>
           <CardTitle>Notifications</CardTitle>
-          <CardDescription>Manage your email notification preferences.</CardDescription>
+          <CardDescription>Manage your email and app notification preferences.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-           {/* Notification settings - Implement later */}
-          <div className="flex items-center justify-between space-x-2 p-4 border rounded-lg">
-            <Label htmlFor="newsletter-switch" className="flex flex-col space-y-1">
-                <span>Marketing Emails</span>
-                <span className="font-normal leading-snug text-muted-foreground">
-                  Receive updates about new products and promotions.
-                </span>
-            </Label>
-             <Switch id="newsletter-switch" disabled />
-          </div>
-           <div className="flex items-center justify-between space-x-2 p-4 border rounded-lg">
-            <Label htmlFor="order-updates-switch" className="flex flex-col space-y-1">
-                <span>Order Updates</span>
-                <span className="font-normal leading-snug text-muted-foreground">
-                  Get notified about the status of your orders.
-                </span>
-            </Label>
-             <Switch id="order-updates-switch" disabled defaultChecked/>
-          </div>
+            {prefsLoading ? (
+                 <div className="space-y-4">
+                    <Skeleton className="h-16 w-full rounded-lg" />
+                    <Skeleton className="h-16 w-full rounded-lg" />
+                    <Skeleton className="h-16 w-full rounded-lg" />
+                 </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between space-x-2 p-4 border rounded-lg">
+                    <Label htmlFor="marketing-switch" className="flex flex-col space-y-1">
+                        <span>Marketing Emails</span>
+                        <span className="font-normal leading-snug text-muted-foreground">
+                        Receive updates about new products and promotions.
+                        </span>
+                    </Label>
+                    <Switch
+                        id="marketing-switch"
+                        checked={preferences.marketing}
+                        onCheckedChange={(checked) => handlePreferenceChange('marketing', checked)}
+                        disabled={!db} // Disable if db unavailable
+                    />
+                </div>
+                <div className="flex items-center justify-between space-x-2 p-4 border rounded-lg">
+                    <Label htmlFor="order-updates-switch" className="flex flex-col space-y-1">
+                        <span>Order Updates</span>
+                        <span className="font-normal leading-snug text-muted-foreground">
+                        Get notified about the status of your orders.
+                        </span>
+                    </Label>
+                    <Switch
+                        id="order-updates-switch"
+                        checked={preferences.orderUpdates}
+                        onCheckedChange={(checked) => handlePreferenceChange('orderUpdates', checked)}
+                        disabled={!db} // Disable if db unavailable
+                    />
+                </div>
+                <div className="flex items-center justify-between space-x-2 p-4 border rounded-lg">
+                    <Label htmlFor="new-products-switch" className="flex flex-col space-y-1">
+                        <span>New Product Alerts</span>
+                        <span className="font-normal leading-snug text-muted-foreground">
+                          Be the first to know when new items are added.
+                        </span>
+                    </Label>
+                    <Switch
+                        id="new-products-switch"
+                        checked={preferences.newProducts}
+                        onCheckedChange={(checked) => handlePreferenceChange('newProducts', checked)}
+                        disabled={!db} // Disable if db unavailable
+                    />
+                </div>
+                {!db && <p className="text-sm text-destructive text-center">Notification settings unavailable.</p>}
+              </>
+            )}
         </CardContent>
       </Card>
 
