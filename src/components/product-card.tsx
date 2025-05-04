@@ -2,12 +2,14 @@
 
 import type { Product } from '@/types';
 import Image from 'next/image';
+import Link from 'next/link'; // Import Link
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ShoppingCart, Heart } from 'lucide-react'; // Import Heart icon
+import { ShoppingCart, Heart, Eye } from 'lucide-react'; // Import Heart and Eye icons
 import { useCart } from '@/hooks/useCart';
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from 'react'; // Import useEffect and useState
+import { cn } from '@/lib/utils'; // Import cn
 
 interface ProductCardProps {
   product: Product;
@@ -26,7 +28,9 @@ export function ProductCard({ product }: ProductCardProps) {
   // Memoize or derive wishlist status only on client
   const isWishlisted = isClient ? isInWishlist(product.id) : false;
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation(); // Prevent link navigation when clicking button
+    e.preventDefault(); // Prevent link navigation
     addItem(product);
     toast({
       title: "Added to Cart",
@@ -35,7 +39,9 @@ export function ProductCard({ product }: ProductCardProps) {
     });
   };
 
-  const handleToggleWishlist = () => {
+  const handleToggleWishlist = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation(); // Prevent link navigation when clicking button
+    e.preventDefault(); // Prevent link navigation
     if (!isClient) return; // Guard against server-side execution
 
     if (isWishlisted) {
@@ -53,48 +59,62 @@ export function ProductCard({ product }: ProductCardProps) {
         variant: 'default',
       });
     }
-     // Force re-render might not be needed if zustand state updates trigger it
   };
 
   return (
-    <Card className="flex flex-col overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 relative group">
-      <CardHeader className="p-0">
-        <div className="relative w-full h-48">
-          <Image
-            src={product.imageUrl}
-            alt={product.name}
-            fill
-            style={{ objectFit: 'cover' }}
-            sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 23vw"
-            data-ai-hint={product.imageHint}
-            priority={product.id.endsWith('1') || product.id.endsWith('2')}
-          />
-           {/* Wishlist Button - positioned top-right */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className={`absolute top-2 right-2 z-10 h-9 w-9 rounded-full bg-background/70 hover:bg-background/90 text-foreground transition-colors duration-200 ${
-                isWishlisted ? 'text-red-500 hover:text-red-600' : 'text-muted-foreground hover:text-foreground'
-              }`}
-              onClick={handleToggleWishlist}
-              aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
-            >
-              <Heart
-                className={`h-5 w-5 transition-transform duration-200 ease-in-out group-hover:scale-110 ${isWishlisted ? 'fill-current' : 'fill-none'}`}
-                strokeWidth={isWishlisted ? 0 : 2} // Hide stroke when filled
-              />
-            </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="p-4 flex-grow">
-        <CardTitle className="text-lg font-semibold mb-1">{product.name}</CardTitle>
-        <CardDescription className="text-sm text-muted-foreground mb-2 line-clamp-2">{product.description}</CardDescription>
-        <p className="text-lg font-bold text-primary">${product.price.toFixed(2)}</p>
-      </CardContent>
-      <CardFooter className="p-4 pt-0">
-        <Button onClick={handleAddToCart} className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+    <Card className="flex flex-col overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 relative group h-full">
+      {/* Wishlist Button - positioned top-right */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className={cn(
+            "absolute top-2 right-2 z-10 h-9 w-9 rounded-full bg-background/70 hover:bg-background/90 text-foreground transition-colors duration-200",
+            isWishlisted ? 'text-red-500 hover:text-red-600' : 'text-muted-foreground hover:text-foreground'
+        )}
+        onClick={handleToggleWishlist}
+        aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+        disabled={!isClient}
+      >
+        <Heart
+          className={cn(
+            "h-5 w-5 transition-transform duration-200 ease-in-out group-hover:scale-110",
+            isWishlisted ? 'fill-current' : 'fill-none'
+            )}
+          strokeWidth={isWishlisted ? 0 : 2} // Hide stroke when filled
+        />
+      </Button>
+
+      <Link href={`/products/${product.id}`} className="flex flex-col flex-grow cursor-pointer">
+        <CardHeader className="p-0">
+          <div className="relative w-full h-48">
+            <Image
+              src={product.imageUrl}
+              alt={product.name}
+              fill
+              style={{ objectFit: 'cover' }}
+              sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 23vw"
+              data-ai-hint={product.imageHint}
+              priority={product.id.endsWith('1') || product.id.endsWith('2')}
+              className="transition-transform duration-300 group-hover:scale-105"
+            />
+          </div>
+        </CardHeader>
+        <CardContent className="p-4 flex-grow">
+          <CardTitle className="text-lg font-semibold mb-1 line-clamp-1 group-hover:text-primary transition-colors">{product.name}</CardTitle>
+          <CardDescription className="text-sm text-muted-foreground mb-2 line-clamp-2">{product.description}</CardDescription>
+          <p className="text-lg font-bold text-primary">${product.price.toFixed(2)}</p>
+        </CardContent>
+      </Link>
+
+      <CardFooter className="p-4 pt-0 mt-auto flex items-center gap-2">
+        <Button onClick={handleAddToCart} className="flex-grow bg-accent text-accent-foreground hover:bg-accent/90" disabled={!isClient}>
           <ShoppingCart className="mr-2 h-4 w-4" /> Add to Cart
         </Button>
+         <Link href={`/products/${product.id}`} passHref legacyBehavior>
+            <Button variant="outline" size="icon" aria-label="View Details">
+              <Eye className="h-4 w-4" />
+            </Button>
+         </Link>
       </CardFooter>
     </Card>
   );
