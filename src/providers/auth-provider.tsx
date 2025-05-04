@@ -26,8 +26,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (auth && db) {
         setFirebaseReady(true);
     } else {
-        // Log a warning if Firebase failed to initialize (likely due to bad config)
-        console.warn("Firebase Auth or Firestore is not initialized. Authentication features will be unavailable.");
+        // Error handling is done within firebase.ts, just update state here
         setFirebaseReady(false);
         setLoading(false); // Stop loading, but state remains unauthenticated
     }
@@ -77,14 +76,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   if (loading) {
      return (
        <div className="flex min-h-screen items-center justify-center">
-            <p>Loading...</p>
-            {/* Or use a more sophisticated loading spinner */}
+            {/* Use a simple loading indicator or skeleton */}
+            <Skeleton className="h-8 w-32" />
        </div>
       );
   }
 
   // If Firebase isn't ready after loading, render children but auth features will be disabled
-  // The console warning from the first effect serves as the error indication.
+  // The console error from firebase.ts serves as the primary error indication.
   return (
     <AuthContext.Provider value={{ user, loading, isAdmin }}>
       {children}
