@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -11,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Bell, CheckCheck, Mail } from 'lucide-react';
+import { Bell, CheckCheck, Mail, Megaphone, AlertTriangle, Info, Package, Sparkles } from 'lucide-react'; // Added more icons
 import { useAuth } from '@/providers/auth-provider';
 import { db } from '@/lib/firebase/firebase'; // db might be null
 import { collection, query, where, orderBy, onSnapshot, limit, doc, updateDoc, writeBatch, Timestamp } from 'firebase/firestore'; // Added Timestamp
@@ -21,6 +22,7 @@ import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils'; // Import cn utility
 
 export function NotificationDropdown() {
   const { user, loading: authLoading } = useAuth();
@@ -126,17 +128,35 @@ export function NotificationDropdown() {
     }
   };
 
+  const getNotificationIcon = (type: Notification['type']) => {
+    switch (type) {
+      case 'promotion': return <Megaphone className="h-4 w-4 text-accent flex-shrink-0" />;
+      case 'system_alert': return <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />;
+      case 'order_update': return <Package className="h-4 w-4 text-blue-500 flex-shrink-0" />;
+      case 'new_product': return <Sparkles className="h-4 w-4 text-purple-500 flex-shrink-0" />;
+      case 'general':
+      default: return <Info className="h-4 w-4 text-muted-foreground flex-shrink-0" />;
+    }
+  };
+
   const renderNotificationItem = (notification: Notification) => {
     const timeAgo = notification.createdAt ? formatDistanceToNow(notification.createdAt, { addSuffix: true }) : 'just now';
+    const isAdminMessage = notification.userId === 'all'; // Check if it's an admin broadcast
 
     const content = (
         <div className="flex items-start space-x-3">
-             {!notification.read && <span className="mt-1 h-2 w-2 rounded-full bg-primary flex-shrink-0" aria-hidden="true" />}
-              {notification.read && <span className="mt-1 h-2 w-2 rounded-full bg-transparent flex-shrink-0" aria-hidden="true" />} {/* Placeholder for alignment */}
+             {getNotificationIcon(notification.type)} {/* Add icon based on type */}
             <div className="flex-1 space-y-1">
-                <p className={`text-sm font-medium ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>{notification.message}</p>
+                <p className={cn(
+                    "text-sm",
+                    !notification.read ? 'font-semibold text-foreground' : 'text-muted-foreground',
+                    isAdminMessage && 'italic text-primary/80' // Style admin messages
+                    )}>
+                    {notification.message}
+                 </p>
                 <p className="text-xs text-muted-foreground">{timeAgo}</p>
             </div>
+            {!notification.read && <span className="ml-auto mt-1 h-2 w-2 rounded-full bg-primary flex-shrink-0" aria-label="Unread" />}
         </div>
     );
 
@@ -149,11 +169,18 @@ export function NotificationDropdown() {
          // If no link, prevent default dropdown closing if desired, but usually okay to close.
      };
 
+    const itemClasses = cn(
+        "cursor-pointer",
+        !notification.read ? '' : '', // Base styling for read/unread can go here if needed
+        isAdminMessage ? 'bg-primary/5 hover:bg-primary/10' : '' // Specific background for admin messages
+    );
+
+
     if (notification.link) {
         return (
             <Link href={notification.link} passHref legacyBehavior key={notification.id}>
                 <DropdownMenuItem
-                  className={`cursor-pointer ${!notification.read ? 'font-semibold' : ''}`}
+                  className={itemClasses}
                   onSelect={(e) => e.preventDefault()} // Prevent auto-closing for Link
                   onClick={handleItemClick} // Handle read status and navigation
                   >
@@ -166,7 +193,7 @@ export function NotificationDropdown() {
     return (
         <DropdownMenuItem
             key={notification.id}
-            className={`cursor-pointer ${!notification.read ? 'font-semibold' : ''}`}
+            className={itemClasses}
             onClick={handleItemClick} // Handle read status
             >
             {content}

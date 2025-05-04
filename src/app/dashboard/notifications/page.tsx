@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -8,7 +9,7 @@ import type { Notification } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Mail, CheckCheck, Trash2, BellOff } from 'lucide-react';
+import { Mail, CheckCheck, Trash2, BellOff, Megaphone, AlertTriangle, Info, Package, Sparkles } from 'lucide-react'; // Added more icons
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -24,6 +25,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from '@/components/ui/scroll-area'; // Import ScrollArea
+import { cn } from '@/lib/utils'; // Import cn utility
 
 export default function AllNotificationsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -140,6 +142,17 @@ export default function AllNotificationsPage() {
         }
     };
 
+     const getNotificationIcon = (type: Notification['type']) => {
+        switch (type) {
+        case 'promotion': return <Megaphone className="h-5 w-5 text-accent flex-shrink-0" />;
+        case 'system_alert': return <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />;
+        case 'order_update': return <Package className="h-5 w-5 text-blue-500 flex-shrink-0" />;
+        case 'new_product': return <Sparkles className="h-5 w-5 text-purple-500 flex-shrink-0" />;
+        case 'general':
+        default: return <Info className="h-5 w-5 text-muted-foreground flex-shrink-0" />;
+        }
+    };
+
     const unreadCount = notifications.filter(n => !n.read).length;
 
     if (authLoading) {
@@ -161,7 +174,7 @@ export default function AllNotificationsPage() {
             <h1 className="text-2xl font-bold">All Notifications</h1>
              {unreadCount > 0 && !loading && (
                 <Button variant="outline" size="sm" onClick={handleMarkAllAsRead}>
-                    <CheckCheck className="mr-2 h-4 w-4" /> Mark All as Read
+                    <CheckCheck className="mr-2 h-4 w-4" /> Mark All as Read ({unreadCount})
                 </Button>
             )}
         </div>
@@ -197,21 +210,33 @@ export default function AllNotificationsPage() {
                     {notifications.map((notification) => {
                        const timeAgo = notification.createdAt ? formatDistanceToNow(notification.createdAt, { addSuffix: true }) : 'just now';
                        const isUnread = !notification.read;
+                       const isAdminMessage = notification.userId === 'all';
 
                        const content = (
                             <div className="flex-1 space-y-1 mr-4">
-                                <p className={`text-sm font-medium ${isUnread ? 'text-foreground' : 'text-muted-foreground'}`}>{notification.message}</p>
+                                <p className={cn(
+                                    "text-sm font-medium",
+                                    isUnread ? 'text-foreground' : 'text-muted-foreground',
+                                    isAdminMessage && 'italic text-primary/80' // Style admin messages differently
+                                    )}>
+                                    {notification.message}
+                                </p>
                                 <p className="text-xs text-muted-foreground">{timeAgo}</p>
                             </div>
                         );
 
+                         const itemClasses = cn(
+                            "flex items-start space-x-3 p-4 border rounded-lg transition-colors hover:bg-muted/50",
+                             isUnread ? 'bg-muted/30' : 'bg-background',
+                             isAdminMessage ? 'border-primary/20 bg-primary/5 hover:bg-primary/10' : '' // Different border/bg for admin messages
+                         );
+
                         return (
                             <div
                                 key={notification.id}
-                                className={`flex items-start space-x-3 p-4 border rounded-lg transition-colors ${isUnread ? 'bg-muted/30' : 'bg-background'} hover:bg-muted/50`}
+                                className={itemClasses}
                             >
-                                {isUnread && <span className="mt-1 h-2 w-2 rounded-full bg-primary flex-shrink-0" aria-label="Unread" />}
-                                 {!isUnread && <span className="mt-1 h-2 w-2 rounded-full bg-transparent flex-shrink-0" aria-hidden="true" />} {/* Alignment placeholder */}
+                                 {getNotificationIcon(notification.type)} {/* Add icon */}
 
                                  {notification.link ? (
                                     <Link href={notification.link} className="flex-1 flex items-start" onClick={() => !isUnread || handleMarkAsRead(notification.id)}>
