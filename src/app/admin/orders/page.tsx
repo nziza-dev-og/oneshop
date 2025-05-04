@@ -1,9 +1,9 @@
  "use client";
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation'; // Import useSearchParams
 import { useAuth } from '@/providers/auth-provider';
-import { collection, query, getDocs, orderBy, doc, getDoc, Timestamp, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore'; // Import Timestamp, updateDoc, addDoc, serverTimestamp
+import { collection, query, getDocs, orderBy, doc, getDoc, Timestamp, updateDoc, addDoc, serverTimestamp, where } from 'firebase/firestore'; // Import where
 import { db } from '@/lib/firebase/firebase'; // db might be null
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -49,32 +49,58 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null); // Track updating order
   const router = useRouter();
+  const searchParams = useSearchParams(); // Get search params
+  const filterUserId = searchParams.get('userId'); // Get userId from query param
   const { toast } = useToast(); // Initialize toast
+  const [filteredUserName, setFilteredUserName] = useState<string | null>(null); // State to hold the user's name/email if filtering
 
   useEffect(() => {
     // Auth checks handled by layout
     if (!authLoading && isAdmin && db) { // Check db
       const fetchOrders = async () => {
         setLoading(true);
+        setFilteredUserName(null); // Reset user name on fetch
         try {
           const ordersRef = collection(db, 'orders');
-          const q = query(ordersRef, orderBy('orderDate', 'desc'));
+          let q;
+
+          if (filterUserId) {
+            // Query orders for a specific user
+            q = query(ordersRef, where('userId', '==', filterUserId), orderBy('orderDate', 'desc'));
+             // Fetch the user's email/name to display in the title
+             try {
+                const userDocRef = doc(db, 'users', filterUserId);
+                const userDocSnap = await getDoc(userDocRef);
+                if (userDocSnap.exists()) {
+                    setFilteredUserName(userDocSnap.data().email || `User ${filterUserId.substring(0, 6)}...`);
+                }
+             } catch { /* Ignore error fetching user name */ }
+          } else {
+            // Query all orders
+            q = query(ordersRef, orderBy('orderDate', 'desc'));
+          }
+
           const querySnapshot = await getDocs(q);
 
           const fetchedOrdersPromises = querySnapshot.docs.map(async (orderDoc) => {
             const data = orderDoc.data();
             let userEmail = 'N/A';
 
-            // Fetch user email from users collection
-            try {
-               const userDocRef = doc(db, 'users', data.userId);
-               const userDocSnap = await getDoc(userDocRef);
-               if (userDocSnap.exists()) {
-                 userEmail = userDocSnap.data().email || 'N/A';
-               }
-            } catch (userError) {
-                console.error(`Error fetching user ${data.userId}:`, userError);
-            }
+             // Fetch user email from users collection if not already filtering by user
+             if (!filterUserId || data.userId !== filterUserId) {
+                 try {
+                     const userDocRef = doc(db, 'users', data.userId);
+                     const userDocSnap = await getDoc(userDocRef);
+                     if (userDocSnap.exists()) {
+                         userEmail = userDocSnap.data().email || 'N/A';
+                     }
+                 } catch (userError) {
+                     console.error(`Error fetching user ${data.userId}:`, userError);
+                 }
+             } else if (filteredUserName) {
+                 userEmail = filteredUserName; // Use the already fetched name/email
+             }
+
 
              // Ensure orderDate is converted correctly from Firestore Timestamp
              let orderDate: Date;
@@ -117,7 +143,7 @@ export default function AdminOrdersPage() {
         setLoading(false);
         toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
     }
-  }, [user, authLoading, isAdmin, router, toast]); // Dependency array updated
+  }, [user, authLoading, isAdmin, router, toast, filterUserId, filteredUserName]); // Added filterUserId and filteredUserName
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
     if (!db) { // Check db
@@ -234,20 +260,22 @@ export default function AdminOrdersPage() {
     <div>
       <Card>
           <CardHeader>
-            <CardTitle>All Customer Orders</CardTitle>
-            <CardDescription>Manage and view all orders placed by users.</CardDescription>
+            <CardTitle>{filterUserId ? `Orders for ${filteredUserName || 'User'}` : 'All Customer Orders'}</CardTitle>
+            <CardDescription>
+              {filterUserId ? `Viewing orders placed by ${filteredUserName || filterUserId}` : 'Manage and view all orders placed by users.'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
               {orders.length === 0 ? (
                 <div className="text-center text-muted-foreground py-8">
-                    No orders found.
+                    {filterUserId ? `No orders found for this user.` : `No orders found.`}
                 </div>
               ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[150px]">Order ID</TableHead>
-                    <TableHead className="min-w-[150px]">User</TableHead>
+                    {!filterUserId && <TableHead className="min-w-[150px]">User</TableHead>} {/* Hide User column if filtering */}
                     <TableHead className="w-[150px]">Date</TableHead>
                     <TableHead className="w-[100px] text-right">Total</TableHead>
                     <TableHead className="w-[120px] text-center">Status</TableHead>
@@ -258,10 +286,12 @@ export default function AdminOrdersPage() {
                   {orders.map((order) => (
                     <TableRow key={order.id}>
                       <TableCell className="font-medium">{order.id.substring(0,8)}...</TableCell>
-                       <TableCell>
-                        <div className="font-medium">{order.userEmail}</div>
-                        <div className="text-xs text-muted-foreground">{order.userId.substring(0,10)}...</div>
-                       </TableCell>
+                       {!filterUserId && (
+                           <TableCell>
+                             <div className="font-medium">{order.userEmail}</div>
+                             <div className="text-xs text-muted-foreground">{order.userId.substring(0,10)}...</div>
+                           </TableCell>
+                       )}
                       <TableCell>{order.orderDate.toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">${order.totalPrice.toFixed(2)}</TableCell>
                       <TableCell className="text-center">
@@ -354,6 +384,3 @@ export default function AdminOrdersPage() {
     </div>
   );
 }
-
-    
-

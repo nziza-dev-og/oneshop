@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal } from 'lucide-react'; // For actions dropdown trigger
+import { MoreHorizontal, User as UserIcon, ShoppingBag } from 'lucide-react'; // For actions dropdown trigger, added UserIcon, ShoppingBag
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/hooks/use-toast'; // Import useToast
+import Link from 'next/link'; // Import Link
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -58,6 +59,8 @@ export default function AdminUsersPage() {
             displayName: data.displayName || 'N/A',
             createdAt: createdAt,
             isAdmin: data.isAdmin || false,
+            // Include notificationPreferences if needed later
+            notificationPreferences: data.notificationPreferences || {},
           } as UserProfile;
         });
         setUsers(fetchedUsers);
@@ -157,8 +160,16 @@ export default function AdminUsersPage() {
                          </DropdownMenuTrigger>
                          <DropdownMenuContent align="end">
                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                           <DropdownMenuItem disabled>View Profile</DropdownMenuItem> {/* Implement later */}
-                           <DropdownMenuItem disabled>View Orders</DropdownMenuItem> {/* Implement later */}
+                           <DropdownMenuItem disabled>
+                                <UserIcon className="mr-2 h-4 w-4" />
+                                View Profile {/* Implement dedicated admin profile view later */}
+                           </DropdownMenuItem>
+                           <DropdownMenuItem asChild>
+                             <Link href={`/admin/orders?userId=${user.uid}`}>
+                                <ShoppingBag className="mr-2 h-4 w-4" />
+                                View Orders
+                              </Link>
+                           </DropdownMenuItem>
                            <DropdownMenuSeparator />
                             {/* Add role change/delete actions later with confirmation dialogs */}
                            <DropdownMenuItem className="text-destructive" disabled>
