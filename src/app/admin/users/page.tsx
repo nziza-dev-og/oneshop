@@ -160,16 +160,12 @@ export default function AdminUsersPage() {
                          </DropdownMenuTrigger>
                          <DropdownMenuContent align="end">
                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                           {/* Link to a future dedicated admin view of user profile */}
-                           <DropdownMenuItem asChild disabled>
-                                {/* <Link href={`/admin/users/${user.uid}`}> // Disabled for now
+                           {/* Link to admin view of user profile */}
+                           <DropdownMenuItem asChild>
+                                <Link href={`/admin/users/${user.uid}`}>
                                     <UserIcon className="mr-2 h-4 w-4" />
                                     View Profile
-                                </Link> */}
-                                <button className="w-full text-left flex items-center opacity-50 cursor-not-allowed">
-                                     <UserIcon className="mr-2 h-4 w-4" />
-                                     View Profile
-                                </button>
+                                </Link>
                            </DropdownMenuItem>
                            {/* Link to admin orders page filtered by this user's ID */}
                            <DropdownMenuItem asChild>
@@ -179,9 +175,9 @@ export default function AdminUsersPage() {
                               </Link>
                            </DropdownMenuItem>
                            <DropdownMenuSeparator />
-                            {/* Add role change/delete actions later with confirmation dialogs */}
+                            {/* Add role change/delete actions later with confirmation dialogs - potentially on the user detail page */}
                            <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10" disabled>
-                             Delete User
+                             Delete User (Future)
                            </DropdownMenuItem>
                          </DropdownMenuContent>
                        </DropdownMenu>
