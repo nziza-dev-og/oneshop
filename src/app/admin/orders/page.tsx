@@ -3,14 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation'; // Import useSearchParams
 import { useAuth } from '@/providers/auth-provider';
-import { collection, query, getDocs, orderBy, doc, getDoc, Timestamp, updateDoc, addDoc, serverTimestamp, where } from 'firebase/firestore'; // Import where
+import { collection, query, getDocs, orderBy, doc, getDoc, Timestamp, updateDoc, addDoc, serverTimestamp, where, onSnapshot } from 'firebase/firestore'; // Import where and onSnapshot
 import { db } from '@/lib/firebase/firebase'; // db might be null
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button'; // Import Button
-import { MoreHorizontal, CheckCircle, XCircle, Loader2 } from 'lucide-react'; // Import icons
+import { MoreHorizontal, CheckCircle, XCircle, Loader2, Eye } from 'lucide-react'; // Import icons, added Eye
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,17 +31,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"; // Import AlertDialog components
 import { useToast } from '@/hooks/use-toast'; // Import useToast
-import type { CartItem, Notification } from '@/types'; // Assuming CartItem usage if viewing order details, Import Notification
+import type { Notification } from '@/types'; // Import Notification
+import Link from 'next/link'; // Import Link
+import type { Order } from '@/types'; // Import Order type
 
-interface Order {
-  id: string;
-  userId: string;
-  userEmail?: string; // Add userEmail
-  items: CartItem[];
-  totalPrice: number;
-  orderDate: Date;
-  status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled'; // Updated status type
-}
 
 export default function AdminOrdersPage() {
   const { user, loading: authLoading, isAdmin } = useAuth();
@@ -53,58 +46,59 @@ export default function AdminOrdersPage() {
   const filterUserId = searchParams.get('userId'); // Get userId from query param
   const { toast } = useToast(); // Initialize toast
   const [filteredUserName, setFilteredUserName] = useState<string | null>(null); // State to hold the user's name/email if filtering
+  const [userEmails, setUserEmails] = useState<Record<string, string>>({}); // Cache user emails
+
+  useEffect(() => {
+      // Fetch user emails when component mounts or isAdmin changes, only if not filtering
+      const fetchUserEmails = async () => {
+          if (isAdmin && db && !filterUserId) {
+              try {
+                  const usersRef = collection(db, 'users');
+                  const userSnapshot = await getDocs(usersRef);
+                  const emails: Record<string, string> = {};
+                  userSnapshot.forEach(doc => {
+                      emails[doc.id] = doc.data().email || 'N/A';
+                  });
+                  setUserEmails(emails);
+              } catch (error) {
+                  console.error("Error fetching user emails:", error);
+              }
+          }
+      };
+      fetchUserEmails();
+  }, [isAdmin, db, filterUserId]); // Depend on db availability
 
   useEffect(() => {
     // Auth checks handled by layout
     if (!authLoading && isAdmin && db) { // Check db
-      const fetchOrders = async () => {
-        setLoading(true);
-        setFilteredUserName(null); // Reset user name on fetch
-        try {
-          const ordersRef = collection(db, 'orders');
-          let q;
-          let fetchedUserName: string | null = null; // Local var for user name
+      setLoading(true);
+      setFilteredUserName(null); // Reset user name on fetch
 
-          if (filterUserId) {
-            // Query orders for a specific user
-            q = query(ordersRef, where('userId', '==', filterUserId), orderBy('orderDate', 'desc'));
-             // Fetch the user's email/name to display in the title
-             try {
-                const userDocRef = doc(db, 'users', filterUserId);
-                const userDocSnap = await getDoc(userDocRef);
-                if (userDocSnap.exists()) {
-                    fetchedUserName = userDocSnap.data().email || `User ${filterUserId.substring(0, 6)}...`;
-                    setFilteredUserName(fetchedUserName); // Set state after successful fetch
-                }
-             } catch { /* Ignore error fetching user name */ }
-          } else {
-            // Query all orders
-            q = query(ordersRef, orderBy('orderDate', 'desc'));
-          }
+      const ordersRef = collection(db, 'orders');
+      let q;
+      let fetchedUserName: string | null = null;
 
-          const querySnapshot = await getDocs(q);
-
-          const fetchedOrdersPromises = querySnapshot.docs.map(async (orderDoc) => {
-            const data = orderDoc.data();
-            let userEmail = 'N/A';
-
-             // Fetch user email from users collection if not already filtering by user
-             if (!filterUserId) {
-                 try {
-                     const userDocRef = doc(db, 'users', data.userId);
-                     const userDocSnap = await getDoc(userDocRef);
-                     if (userDocSnap.exists()) {
-                         userEmail = userDocSnap.data().email || 'N/A';
-                     }
-                 } catch (userError) {
-                     console.error(`Error fetching user ${data.userId}:`, userError);
-                 }
-             } else if (fetchedUserName) { // Use the fetched username if filtering
-                 userEmail = fetchedUserName; // Use the already fetched name/email
+      if (filterUserId) {
+        // Query orders for a specific user
+        q = query(ordersRef, where('userId', '==', filterUserId), orderBy('orderDate', 'desc'));
+         // Fetch the user's email/name to display in the title
+         getDoc(doc(db, 'users', filterUserId)).then(userDocSnap => {
+             if (userDocSnap.exists()) {
+                fetchedUserName = userDocSnap.data().displayName || userDocSnap.data().email || `User ${filterUserId.substring(0, 6)}...`;
+                setFilteredUserName(fetchedUserName);
              }
+         }).catch(err => console.error("Error fetching filtered user name:", err));
+      } else {
+        // Query all orders
+        q = query(ordersRef, orderBy('orderDate', 'desc'));
+      }
 
+      const unsubscribe = onSnapshot(q, (querySnapshot) => { // Use onSnapshot for real-time updates
+          const fetchedOrders = querySnapshot.docs.map((orderDoc) => {
+            const data = orderDoc.data();
+            const userEmail = filterUserId ? fetchedUserName : (userEmails[data.userId] || 'Loading...'); // Use cache or default
 
-             // Ensure orderDate is converted correctly from Firestore Timestamp
+             // Ensure orderDate is converted correctly from Firestore Timestamp or Date
              let orderDate: Date;
              if (data.orderDate instanceof Timestamp) {
                orderDate = data.orderDate.toDate();
@@ -117,35 +111,39 @@ export default function AdminOrdersPage() {
                orderDate = new Date(); // Fallback
              }
 
-
             return {
               id: orderDoc.id,
               userId: data.userId,
-              userEmail: userEmail,
+              userEmail: userEmail, // Add userEmail
               items: data.items,
               totalPrice: data.totalPrice,
-              orderDate: orderDate,
+              orderDate: orderDate, // Use converted Date object
               status: data.status || 'Processing', // Default status
+              stripeCheckoutSessionId: data.stripeCheckoutSessionId,
+              paymentStatus: data.paymentStatus,
+              customerEmail: data.customerEmail,
             } as Order;
           });
-
-          const fetchedOrders = await Promise.all(fetchedOrdersPromises);
           setOrders(fetchedOrders);
-        } catch (error) {
-          console.error("Error fetching orders:", error);
-          toast({ title: "Error", description: "Could not fetch orders.", variant: "destructive" });
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchOrders();
+          setLoading(false); // Set loading to false after first data fetch
+        }, (error) => { // Error handling for onSnapshot
+             console.error("Error fetching orders:", error);
+             toast({ title: "Error", description: "Could not fetch orders.", variant: "destructive" });
+             setLoading(false);
+        });
+
+        // Cleanup function for unsubscribe
+        return () => unsubscribe();
+
     } else if (!authLoading && !isAdmin) {
        // Redirect logic in layout handles non-admins
+       setLoading(false);
     } else if (!db) {
         setLoading(false);
         toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
     }
-  }, [user, authLoading, isAdmin, router, toast, filterUserId]); // Removed filteredUserName from dependency array, use local var
+  }, [user, authLoading, isAdmin, db, router, toast, filterUserId, filteredUserName, userEmails]); // Add db to dependency array
+
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
     if (!db) { // Check db
@@ -165,12 +163,7 @@ export default function AdminOrdersPage() {
       const orderDocRef = doc(db, 'orders', orderId);
       await updateDoc(orderDocRef, { status: newStatus });
 
-      // Update local state immediately
-      setOrders(prevOrders =>
-        prevOrders.map(order =>
-          order.id === orderId ? { ...order, status: newStatus } : order
-        )
-      );
+      // Local state update is handled by the onSnapshot listener
 
       toast({
         title: "Order Updated",
@@ -290,16 +283,22 @@ export default function AdminOrdersPage() {
                       <TableCell className="font-medium">{order.id.substring(0,8)}...</TableCell>
                        {!filterUserId && (
                            <TableCell>
-                             <div className="font-medium">{order.userEmail}</div>
+                             <div className="font-medium">{order.customerEmail || userEmails[order.userId] || 'N/A'}</div> {/* Display fetched/cached email */}
                              <div className="text-xs text-muted-foreground">{order.userId.substring(0,10)}...</div>
                            </TableCell>
                        )}
-                      <TableCell>{order.orderDate.toLocaleDateString()}</TableCell>
+                       {/* Ensure orderDate is a Date object before calling toLocaleDateString */}
+                      <TableCell>{order.orderDate instanceof Date ? order.orderDate.toLocaleDateString() : 'Invalid Date'}</TableCell>
                       <TableCell className="text-right">${order.totalPrice.toFixed(2)}</TableCell>
                       <TableCell className="text-center">
                          <Badge
                             variant={order.status === 'Delivered' ? 'default' : order.status === 'Cancelled' ? 'destructive' : 'secondary'}
-                            className={`capitalize ${order.status === 'Processing' ? 'bg-yellow-100 text-yellow-800' : ''} ${order.status === 'Shipped' ? 'bg-blue-100 text-blue-800' : ''}`}
+                            className={`capitalize ${
+                                order.status === 'Processing' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                                order.status === 'Shipped' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                                order.status === 'Delivered' ? 'bg-green-100 text-green-800 border-green-200' :
+                                order.status === 'Cancelled' ? 'bg-red-100 text-red-800 border-red-200' : ''
+                            }`}
                          >
                             {order.status}
                         </Badge>
@@ -317,11 +316,17 @@ export default function AdminOrdersPage() {
                          </DropdownMenuTrigger>
                          <DropdownMenuContent align="end">
                            <DropdownMenuLabel>Order Actions</DropdownMenuLabel>
+                            <DropdownMenuItem asChild>
+                               <Link href={`/admin/orders/${order.id}`}>
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    View Details
+                               </Link>
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <AlertDialog>
                               <AlertDialogTrigger asChild disabled={order.status === 'Delivered' || order.status === 'Cancelled'}>
                                  <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={order.status === 'Delivered' || order.status === 'Cancelled'}>
-                                    <CheckCircle className="mr-2 h-4 w-4" />
+                                    <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
                                     Mark as Delivered
                                 </DropdownMenuItem>
                               </AlertDialogTrigger>
@@ -349,10 +354,10 @@ export default function AdminOrdersPage() {
                                    <DropdownMenuItem
                                     onSelect={(e) => e.preventDefault()}
                                     disabled={order.status === 'Delivered' || order.status === 'Cancelled'}
-                                    className="text-destructive focus:text-destructive"
+                                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
                                     >
                                         <XCircle className="mr-2 h-4 w-4" />
-                                        Mark as Cancelled
+                                        Cancel Order
                                     </DropdownMenuItem>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
@@ -386,3 +391,4 @@ export default function AdminOrdersPage() {
     </div>
   );
 }
+

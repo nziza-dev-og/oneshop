@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
-import type { CartItem, Order } from '@/types'; // Corrected type import
+import type { Order } from '@/types'; // Corrected type import
 import { useToast } from '@/hooks/use-toast'; // Import useToast
 import { ShoppingBag } from 'lucide-react'; // Import icon for empty state
 
@@ -33,7 +33,7 @@ export default function DashboardOrdersPage() {
 
     if (!user) {
       // If not logged in after auth check, redirect (though layout might handle this too)
-      router.push('/login?redirect=/dashboard/orders');
+      // router.push('/login?redirect=/dashboard/orders'); // Let layout handle redirection
       setLoading(false);
       return;
     }
@@ -55,18 +55,18 @@ export default function DashboardOrdersPage() {
         const querySnapshot = await getDocs(q);
         const fetchedOrders = querySnapshot.docs.map(doc => {
           const data = doc.data();
-           // Ensure orderDate is converted correctly from Firestore Timestamp
+           // Ensure orderDate is converted correctly from Firestore Timestamp or Date
            let orderDate: Date;
            if (data.orderDate instanceof Timestamp) {
              orderDate = data.orderDate.toDate();
            } else if (data.orderDate && typeof data.orderDate.seconds === 'number') {
              // Handle cases where it might be a plain object with seconds/nanoseconds
              orderDate = new Timestamp(data.orderDate.seconds, data.orderDate.nanoseconds).toDate();
-           } else if (data.orderDate instanceof Date) {
+           } else if (data.orderDate instanceof Date){
               orderDate = data.orderDate; // Already a Date object
            }
            else {
-             console.warn(`Invalid date format for order ${doc.id}:`, data.orderDate);
+             console.warn(`Invalid or missing date format for order ${doc.id}:`, data.orderDate);
              orderDate = new Date(); // Fallback to current date
            }
 
@@ -75,7 +75,7 @@ export default function DashboardOrdersPage() {
             userId: data.userId,
             items: data.items,
             totalPrice: data.totalPrice,
-            orderDate: orderDate,
+            orderDate: orderDate, // Ensure this is a Date object
             status: data.status || 'Processing', // Default to 'Processing' if status is missing
             // Ensure all required fields from the Order type are included
             stripeCheckoutSessionId: data.stripeCheckoutSessionId,
@@ -131,9 +131,6 @@ export default function DashboardOrdersPage() {
                  ))}
                </TableBody>
              </Table>
-             <div className="border-t mt-4 pt-3 text-right font-semibold">
-                <Skeleton className="h-6 w-32 ml-auto" />
-             </div>
            </CardContent>
             <div className="border-t bg-muted/50 px-6 py-3 text-right font-semibold">
                 <Skeleton className="h-6 w-40 ml-auto" />
@@ -175,7 +172,7 @@ export default function DashboardOrdersPage() {
                     <div>
                         <CardTitle className="text-lg font-semibold">Order #{order.id.substring(0, 8)}...</CardTitle>
                         <CardDescription className="text-xs text-muted-foreground">
-                          Placed on: {order.orderDate.toLocaleDateString()}
+                          Placed on: {order.orderDate instanceof Date ? order.orderDate.toLocaleDateString() : 'N/A'} {/* Display date */}
                         </CardDescription>
                     </div>
                     <Badge
@@ -236,3 +233,4 @@ export default function DashboardOrdersPage() {
     </div>
   );
 }
+

@@ -40,7 +40,7 @@ export interface Order {
   userId: string;
   items: CartItem[]; // Store denormalized item details
   totalPrice: number;
-  orderDate: Timestamp | Date | null; // Use Timestamp | Date | null
+  orderDate: Timestamp | Date; // Changed to Timestamp | Date, fallback handled in components
   status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled'; // Example statuses
   stripeCheckoutSessionId?: string; // Added Stripe session ID
   paymentStatus?: string; // Added payment status from Stripe
@@ -53,9 +53,9 @@ export interface Notification {
     id: string; // Firestore document ID
     userId: string; // Target user ID ('all' or specific UID, 'admin' for admin-only)
     message: string;
-    // Add 'order_update' and 'new_product' types
-    type: 'order_update' | 'promotion' | 'system_alert' | 'admin_action' | 'general' | 'contact_reply' | 'new_product'; // Added contact_reply and new_product
-    link?: string; // Optional link (e.g., to an order page like '/dashboard/orders' or '/products/{productId}')
+    // Add 'order_update', 'new_product', 'admin_action' types
+    type: 'order_update' | 'promotion' | 'system_alert' | 'admin_action' | 'general' | 'contact_reply' | 'new_product'; // Added types
+    link?: string; // Optional link (e.g., to an order page like '/dashboard/orders' or '/products/{productId}' or '/admin/orders/{orderId}')
     read: boolean;
     createdAt: Timestamp | Date | null; // Use Timestamp | Date | null
 }
