@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase/firebase'; // Import possibly null instances
+import { auth, db, isConfigValid } from '@/lib/firebase/firebase'; // Import possibly null instances and isConfigValid
 import { doc, getDoc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton for loading state
 
@@ -19,31 +19,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [firebaseReady, setFirebaseReady] = useState(false); // Track Firebase readiness
 
   useEffect(() => {
-    // Check if auth and db instances were successfully initialized
-    if (auth && db) {
-        setFirebaseReady(true);
-    } else {
-        // Error handling is done within firebase.ts, just update state here
-        setFirebaseReady(false);
-        setLoading(false); // Stop loading, but state remains unauthenticated
-    }
-  }, []); // Run only once on mount to check initial Firebase state
-
-  useEffect(() => {
-    if (!firebaseReady) {
-        // If Firebase is not ready after the initial check, do nothing further.
-        return;
-    }
-
-    // If Firebase is ready and auth exists, set up the listener
-    if (auth) {
+    // Only set up the listener if Firebase config is valid and auth/db instances exist
+    if (isConfigValid && auth && db) {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            if (firebaseUser && db) { // Also ensure db is ready for admin check
+            if (firebaseUser) {
                 setUser(firebaseUser);
-                // Check for admin role
+                // Check for admin role only if db is available
                 try {
                     const userDocRef = doc(db, 'users', firebaseUser.uid);
                     const userDocSnap = await getDoc(userDocRef);
@@ -66,10 +49,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Cleanup subscription on unmount
         return () => unsubscribe();
     } else {
-        // If auth is still null even though firebaseReady was initially true (should be rare)
-        setLoading(false);
+        // Firebase is not configured or initialized correctly
+        console.error("AuthProvider: Firebase is not properly configured or initialized. Auth features disabled.");
+        setUser(null);
+        setIsAdmin(false);
+        setLoading(false); // Stop loading as auth state won't change
     }
-  }, [firebaseReady]); // Re-run when firebaseReady changes
+  }, []); // Run only once on mount
 
 
   // Render a loading state while initially checking Firebase status or waiting for auth state
@@ -82,8 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       );
   }
 
-  // If Firebase isn't ready after loading, render children but auth features will be disabled
-  // The console error from firebase.ts serves as the primary error indication.
+  // Render children once loading is complete, regardless of Firebase status
   return (
     <AuthContext.Provider value={{ user, loading, isAdmin }}>
       {children}

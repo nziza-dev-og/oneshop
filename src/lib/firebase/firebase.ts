@@ -6,7 +6,6 @@ import { getFirestore, Firestore } from "firebase/firestore"; // Added Firestore
 import { getAnalytics, Analytics, isSupported } from "firebase/analytics"; // Added Analytics type
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 // Using hardcoded config as provided by the user
 const firebaseConfig: FirebaseOptions = {
   apiKey: "AIzaSyC81v5TSrC0_wE0jsLW_kFLZs7BMdP5ceQ",
@@ -18,44 +17,49 @@ const firebaseConfig: FirebaseOptions = {
   measurementId: "G-R5GXNHTKFX"
 };
 
+// Basic check for essential config keys
+const isConfigValid = firebaseConfig.apiKey && firebaseConfig.projectId;
 
-// Initialize Firebase
+// Initialize Firebase services, handling potential initialization errors
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 let analytics: Analytics | null = null;
 
-try {
-    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-    auth = getAuth(app);
-    db = getFirestore(app);
+if (isConfigValid) {
+    try {
+        app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+        auth = getAuth(app);
+        db = getFirestore(app);
 
-    // Initialize Analytics only on client-side and if supported and configured
-    if (typeof window !== 'undefined' && firebaseConfig.measurementId) {
-        isSupported().then((supported) => {
-            if (supported && app) { // Ensure app is defined before using it
-                try {
-                    analytics = getAnalytics(app);
-                    console.log("Firebase Analytics initialized.");
-                } catch (analyticsError) {
-                    console.error("Failed to initialize Firebase Analytics", analyticsError);
+        // Initialize Analytics only on client-side and if supported and configured
+        if (typeof window !== 'undefined' && firebaseConfig.measurementId && app) {
+            isSupported().then((supported) => {
+                if (supported) {
+                    try {
+                        analytics = getAnalytics(app);
+                        console.log("Firebase Analytics initialized.");
+                    } catch (analyticsError) {
+                        console.error("Failed to initialize Firebase Analytics", analyticsError);
+                    }
                 }
-            } else {
-                 // console.log("Firebase Analytics is not supported in this environment or measurementId is missing.");
-            }
-        }).catch(err => {
-            console.error("Error checking Firebase Analytics support:", err);
-        });
+            }).catch(err => {
+                console.error("Error checking Firebase Analytics support:", err);
+            });
+        }
+    } catch (error: any) {
+        console.error("Failed to initialize Firebase services:", error.message);
+        // Reset instances to null on initialization error
+        app = null;
+        auth = null;
+        db = null;
+        analytics = null;
     }
-} catch (error) {
-    console.error("Failed to initialize Firebase:", error);
-    // Reset instances to null on initialization error
-    app = null;
-    auth = null;
-    db = null;
-    analytics = null;
+} else {
+     console.error("Essential Firebase configuration (apiKey, projectId) is missing or invalid in the provided firebaseConfig object.");
+     // Firebase services will remain null
 }
 
 
 // Export potentially null values, components using them MUST check for null
-export { app, auth, db, analytics };
+export { app, auth, db, analytics, isConfigValid };
