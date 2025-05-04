@@ -104,30 +104,52 @@ export function CartSheet() {
 
       console.log("[Checkout] Attempting redirectToCheckout with sessionId:", sessionId); // Log before redirect
 
-      // Attempt redirection
-      const { error } = await stripe.redirectToCheckout({ sessionId });
+      // Use window.location.href for direct navigation
+      if (typeof window !== 'undefined') {
+        // Construct the Stripe Checkout URL
+        // This is a placeholder structure, Stripe might use different URL patterns.
+        // It's usually better to rely on stripe.redirectToCheckout, but this is a fallback.
+        // The actual URL might not be directly constructible client-side and might
+        // require interaction with the session object returned from Stripe's API.
+        // The redirectToCheckout method is the intended way.
+        // This manual redirection is a less ideal workaround for potential iframe issues.
 
-      // If redirectToCheckout fails (likely in iframe environments), log the error.
-      if (error) {
-        console.error('[Checkout] Stripe redirect error:', error);
-        toast({
-          title: "Checkout Error",
-          // Provide specific guidance for iframe scenarios
-          description: error.message || "Failed to redirect to Stripe automatically. This can happen in preview environments. Please check your browser console or try in a new tab.",
-          variant: "destructive",
-          duration: 10000, // Longer duration for the error message
-        });
-         // Fallback: Open Stripe checkout URL in a new tab as a workaround
-         // Check if window is defined (to avoid server-side errors)
-         if (typeof window !== 'undefined') {
-            const sessionUrl = `https://checkout.stripe.com/pay/${sessionId}`;
-            console.warn(`[Checkout] Attempting to open checkout URL in new tab: ${sessionUrl}`);
-            window.open(sessionUrl, '_blank');
+        // The error "Failed to set a named property 'href' on 'Location'" suggests
+        // the environment (like an iframe in some preview tools) restricts direct navigation.
+        // Trying window.open as another fallback.
+
+         try {
+             const { error } = await stripe.redirectToCheckout({ sessionId });
+             if (error) {
+                 // Log the error and try window.open if redirection fails
+                console.error('[Checkout] Stripe redirectToCheckout error:', error);
+                // Construct a plausible URL - THIS MIGHT NOT BE CORRECT for all Stripe versions
+                const stripeCheckoutUrl = `https://checkout.stripe.com/pay/${sessionId}`;
+                console.warn(`[Checkout] Redirect failed, attempting to open in new tab: ${stripeCheckoutUrl}`);
+                window.open(stripeCheckoutUrl, '_blank');
+                 toast({
+                     title: "Redirect Issue",
+                     description: "Could not automatically redirect to checkout. Opening in a new tab.",
+                     variant: "default",
+                     duration: 10000,
+                 });
+             } else {
+                 console.log("[Checkout] Redirecting via redirectToCheckout...");
+             }
+         } catch (catchError: any) {
+            console.error("[Checkout] Error during redirectToCheckout or fallback:", catchError);
+             toast({
+                 title: "Checkout Failed",
+                 description: catchError.message || "Could not initiate checkout.",
+                 variant: "destructive",
+             });
          }
+
       } else {
-        console.log("[Checkout] Redirecting to Stripe..."); // Log success if no immediate error
+          console.error("[Checkout] Cannot redirect: 'window' is not defined (running on server?).");
+           throw new Error("Checkout can only be initiated from the client-side.");
       }
-      // Order creation will now typically happen via Stripe webhooks listening for 'checkout.session.completed'.
+
 
     } catch (error: any) {
       console.error("[Checkout] Overall Checkout Error:", error); // Log any caught error
@@ -154,15 +176,14 @@ export function CartSheet() {
           <span className="sr-only">Open Cart</span>
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-lg flex flex-col p-0"> {/* Use full width on small, max-lg, remove padding */}
-        <SheetHeader className="px-6 pt-6 pb-4">
-          <SheetTitle className="text-2xl font-bold">Your Shopping Cart</SheetTitle>
+      <SheetContent className="w-full sm:max-w-lg flex flex-col p-0 bg-slate-50 dark:bg-slate-900"> {/* Light/Dark background */}
+        <SheetHeader className="px-6 pt-6 pb-4 border-b border-slate-200 dark:border-slate-700">
+          <SheetTitle className="text-2xl font-bold text-slate-900 dark:text-slate-100">Your Shopping Cart</SheetTitle>
         </SheetHeader>
-        <Separator />
         {isClient && items.length === 0 ? (
           <div className="flex flex-col items-center justify-center flex-grow text-center p-6">
-            <ShoppingCart className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
-            <p className="text-lg font-semibold text-muted-foreground">Your cart is empty</p>
+            <ShoppingCart className="h-16 w-16 text-slate-400 dark:text-slate-600 mb-4 opacity-50" />
+            <p className="text-lg font-semibold text-slate-600 dark:text-slate-400">Your cart is empty</p>
             <SheetClose asChild>
                <Button variant="link" className="mt-2 text-primary">Continue Shopping</Button>
             </SheetClose>
@@ -171,11 +192,11 @@ export function CartSheet() {
           <>
             {/* Content Area */}
             <ScrollArea className="flex-grow overflow-y-auto px-6 py-4">
-              <div className="space-y-5"> {/* Increased spacing */}
+              <div className="space-y-5">
                 {isClient && items.map((item) => (
-                  <div key={item.id} className="flex items-start space-x-4">
+                  <div key={item.id} className="flex items-start space-x-4 border-b border-slate-200 dark:border-slate-700 pb-4 last:border-b-0">
                     {/* Image */}
-                    <div className="relative h-20 w-20 rounded-md overflow-hidden border flex-shrink-0">
+                    <div className="relative h-20 w-20 rounded-md overflow-hidden border border-slate-200 dark:border-slate-700 flex-shrink-0">
                       <Image
                         src={item.imageUrl}
                         alt={item.name}
@@ -186,29 +207,29 @@ export function CartSheet() {
                       />
                     </div>
                     {/* Details & Actions */}
-                    <div className="flex-grow flex flex-col justify-between min-h-[80px]"> {/* Ensure min height */}
+                    <div className="flex-grow flex flex-col justify-between min-h-[80px]">
                       <div>
-                        <p className="font-semibold text-base line-clamp-2">{item.name}</p>
-                        <p className="text-sm text-muted-foreground">${item.price.toFixed(2)}</p>
+                        <p className="font-semibold text-base line-clamp-2 text-slate-800 dark:text-slate-200">{item.name}</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">${item.price.toFixed(2)}</p>
                       </div>
                       <div className="flex items-center justify-between mt-2">
-                        {/* Quantity Controls */}
-                        <div className="flex items-center border rounded-md">
+                        {/* Quantity Controls - Amazon Style */}
+                        <div className="flex items-center border border-slate-300 dark:border-slate-600 rounded-md overflow-hidden">
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 border-r rounded-r-none"
+                            className="h-7 w-7 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
                             onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
                             disabled={isCheckingOut}
                             aria-label="Decrease quantity"
                           >
                             <Minus className="h-4 w-4" />
                           </Button>
-                          <span className="text-sm w-8 text-center font-medium">{item.quantity}</span>
+                          <span className="text-sm w-8 text-center font-medium text-slate-700 dark:text-slate-300">{item.quantity}</span>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 border-l rounded-l-none"
+                            className="h-7 w-7 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
                             onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
                             disabled={isCheckingOut}
                             aria-label="Increase quantity"
@@ -217,7 +238,7 @@ export function CartSheet() {
                           </Button>
                         </div>
                         {/* Item Total Price */}
-                        <p className="text-base font-semibold">${(item.price * item.quantity).toFixed(2)}</p>
+                        <p className="text-base font-semibold text-slate-800 dark:text-slate-200">${(item.price * item.quantity).toFixed(2)}</p>
                       </div>
                     </div>
                      {/* Remove Button */}
@@ -226,7 +247,7 @@ export function CartSheet() {
                              <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0 ml-2" // Added margin-left
+                                className="h-8 w-8 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-500 flex-shrink-0 ml-2"
                                 disabled={isCheckingOut}
                                 aria-label="Remove item"
                              >
@@ -256,24 +277,23 @@ export function CartSheet() {
               </div>
             </ScrollArea>
 
-            {/* Footer */}
-            <SheetFooter className="px-6 py-5 border-t bg-background mt-auto space-y-4"> {/* Ensure footer sticks */}
-              <div className="flex justify-between items-center font-semibold text-lg">
+            {/* Footer - Amazon Style */}
+            <SheetFooter className="px-6 py-5 border-t border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 mt-auto space-y-4">
+              <div className="flex justify-between items-center font-semibold text-lg text-slate-800 dark:text-slate-200">
                 <span>Subtotal ({totalItems} items):</span>
                 <span>${isClient ? totalPrice.toFixed(2) : '0.00'}</span>
               </div>
-               {/* Updated Checkout button style */}
+              {/* Checkout button - Amazon Orange/Yellow */}
               <Button
                 onClick={handleCheckout}
-                className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-6 shadow-sm hover:shadow-md transition-shadow"
+                className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-3 rounded-lg shadow-sm hover:shadow-md transition-shadow"
                 disabled={isCheckingOut || authLoading || !isClient || items.length === 0}
               >
                 {isCheckingOut ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ShoppingCart className="mr-2 h-5 w-5"/>}
                 {isCheckingOut ? 'Processing...' : 'Proceed to Checkout'}
               </Button>
-               <SheetClose asChild>
-                <Button variant="outline" className="w-full border-border hover:bg-secondary" disabled={isCheckingOut}>Continue Shopping</Button> {/* Adjusted outline style */}
-               </SheetClose>
+               {/* Removed whitespace before SheetClose */}
+               <SheetClose asChild><Button variant="outline" className="w-full border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" disabled={isCheckingOut}>Continue Shopping</Button></SheetClose>
             </SheetFooter>
           </>
         )}
