@@ -13,8 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Bell, CheckCheck, Mail } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
-import { db } from '@/lib/firebase/firebase';
-import { collection, query, where, orderBy, onSnapshot, limit, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { db } from '@/lib/firebase/firebase'; // db might be null
+import { collection, query, where, orderBy, onSnapshot, limit, doc, updateDoc, writeBatch, Timestamp } from 'firebase/firestore'; // Added Timestamp
 import type { Notification } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import Link from 'next/link';
@@ -30,17 +30,17 @@ export function NotificationDropdown() {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!user) {
+    // Only proceed if db and user are available
+    if (!db || !user) {
       setNotifications([]);
       setUnreadCount(0);
       setLoading(false);
-      return; // No user, no notifications
+      return; // No user or db not ready, no notifications
     }
 
     setLoading(true);
     const notificationsRef = collection(db, 'notifications');
     // Query for user-specific notifications OR general notifications ('all')
-    // We might need a more complex query if admins also get specific notifications
     const q = query(
       notificationsRef,
       where('userId', 'in', [user.uid, 'all']), // Listen for user-specific and general notifications
@@ -53,11 +53,14 @@ export function NotificationDropdown() {
          const data = doc.data();
          let createdAt: Date;
           // Correctly handle Firestore Timestamps
-         if (data.createdAt && typeof data.createdAt.seconds === 'number') {
+         if (data.createdAt instanceof Timestamp) { // Check if it's already a Timestamp
             createdAt = data.createdAt.toDate();
+         } else if (data.createdAt && typeof data.createdAt.seconds === 'number') { // Check for plain object structure
+            createdAt = new Timestamp(data.createdAt.seconds, data.createdAt.nanoseconds).toDate();
          } else if (data.createdAt instanceof Date){
-             createdAt = data.createdAt;
+             createdAt = data.createdAt; // Already a Date object
          } else {
+             console.warn("Notification date format unexpected or missing:", data.createdAt);
              createdAt = new Date(); // Fallback
          }
 
@@ -69,8 +72,6 @@ export function NotificationDropdown() {
       });
 
        // Filter notifications that are either for 'all' or the specific user.
-       // This secondary filter might be redundant if the Firestore query is precise,
-       // but ensures correctness if 'all' notifications are mixed with others potentially.
        const relevantNotifications = fetchedNotifications.filter(
             n => n.userId === 'all' || n.userId === user.uid
         );
@@ -90,7 +91,10 @@ export function NotificationDropdown() {
   }, [user, toast]); // Re-run effect when user changes
 
   const handleMarkAsRead = async (notificationId: string) => {
-    if (!user) return;
+    if (!user || !db) {
+        toast({ title: "Error", description: "Service not available.", variant: "destructive" });
+        return;
+    }
     const notificationRef = doc(db, 'notifications', notificationId);
     try {
       await updateDoc(notificationRef, { read: true });
@@ -102,7 +106,7 @@ export function NotificationDropdown() {
   };
 
   const handleMarkAllAsRead = async () => {
-    if (!user || unreadCount === 0) return;
+    if (!user || !db || unreadCount === 0) return;
 
     const batch = writeBatch(db);
     const unreadNotifications = notifications.filter(n => !n.read);
@@ -147,7 +151,7 @@ export function NotificationDropdown() {
 
     if (notification.link) {
         return (
-            <Link href={notification.link} passHref legacyBehavior>
+            <Link href={notification.link} passHref legacyBehavior key={notification.id}>
                 <DropdownMenuItem
                   className={`cursor-pointer ${!notification.read ? 'font-semibold' : ''}`}
                   onSelect={(e) => e.preventDefault()} // Prevent auto-closing for Link
@@ -161,6 +165,7 @@ export function NotificationDropdown() {
 
     return (
         <DropdownMenuItem
+            key={notification.id}
             className={`cursor-pointer ${!notification.read ? 'font-semibold' : ''}`}
             onClick={handleItemClick} // Handle read status
             >
@@ -173,7 +178,7 @@ export function NotificationDropdown() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button variant="ghost" size="icon" className="relative" disabled={!db}> {/* Disable if db not ready */}
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && !loading && (
             <Badge
@@ -191,7 +196,7 @@ export function NotificationDropdown() {
         <DropdownMenuLabel className="flex justify-between items-center">
           <span>Notifications</span>
           {unreadCount > 0 && !loading && (
-            <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs" onClick={handleMarkAllAsRead}>
+            <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs" onClick={handleMarkAllAsRead} disabled={!db}>
               <CheckCheck className="mr-1 h-3 w-3" /> Mark all read
             </Button>
           )}
@@ -202,6 +207,10 @@ export function NotificationDropdown() {
              <div className="p-2 space-y-3">
                  {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
              </div>
+          ) : !db ? ( // Check if db is available
+              <div className="text-center text-muted-foreground p-6">
+                  Notification service unavailable.
+              </div>
           ) : notifications.length === 0 ? (
             <div className="text-center text-muted-foreground p-6">
                 <Mail className="mx-auto h-8 w-8 mb-2"/>

@@ -5,7 +5,7 @@ import { ShoppingBag, LogIn, UserPlus, User, LogOut, ShieldCheck, LayoutDashboar
 import { CartSheet } from '@/components/cart-sheet';
 import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
-import { auth } from '@/lib/firebase/firebase';
+import { auth } from '@/lib/firebase/firebase'; // auth might be null
 import { signOut } from 'firebase/auth';
 import {
   DropdownMenu,
@@ -27,6 +27,10 @@ export function Header() {
   const { toast } = useToast();
 
   const handleLogout = async () => {
+    if (!auth) {
+        toast({ title: "Logout Failed", description: "Authentication service not available.", variant: "destructive" });
+        return;
+    }
     try {
       await signOut(auth);
       toast({ title: "Logged Out", description: "You have been successfully logged out." });
@@ -123,12 +127,12 @@ export function Header() {
           ) : (
             <>
               <Link href="/login">
-                 <Button variant="ghost" size="sm">
+                 <Button variant="ghost" size="sm" disabled={!auth}> {/* Disable if auth not ready */}
                     <LogIn className="mr-2 h-4 w-4" /> Login
                  </Button>
               </Link>
                <Link href="/register">
-                 <Button variant="outline" size="sm">
+                 <Button variant="outline" size="sm" disabled={!auth}> {/* Disable if auth not ready */}
                     <UserPlus className="mr-2 h-4 w-4" /> Register
                  </Button>
                </Link>

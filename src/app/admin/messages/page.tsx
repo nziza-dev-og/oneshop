@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase/firebase';
+import { db } from '@/lib/firebase/firebase'; // db might be null
 import { useAuth } from '@/providers/auth-provider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,8 +42,11 @@ export default function AdminMessagesPage() {
     const { toast } = useToast();
 
     useEffect(() => {
-        if (!isAdmin) {
+        if (!isAdmin || !db) { // Check if db is available
             setLoading(false);
+            if (!db) {
+                 toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
+            }
             return;
         }
 
@@ -91,7 +94,7 @@ export default function AdminMessagesPage() {
     }, [isAdmin, toast]);
 
     const handleUpdateStatus = async (messageId: string, newStatus: ContactMessage['status']) => {
-        if (!isAdmin) return;
+        if (!isAdmin || !db) return; // Check db
         setActionLoadingId(messageId);
         const messageRef = doc(db, 'contactMessages', messageId);
         try {
@@ -107,7 +110,7 @@ export default function AdminMessagesPage() {
     };
 
     const handleDeleteMessage = async (messageId: string) => {
-        if (!isAdmin) return;
+        if (!isAdmin || !db) return; // Check db
         setActionLoadingId(messageId);
         const messageRef = doc(db, 'contactMessages', messageId);
         try {
@@ -129,6 +132,11 @@ export default function AdminMessagesPage() {
     if (!isAdmin && !authLoading) {
         return <div className="text-center text-muted-foreground">Access Denied.</div>;
     }
+
+    if (!db) {
+         return <div className="text-center text-destructive">Database service is unavailable.</div>;
+    }
+
 
     return (
         <div className="space-y-8">

@@ -14,7 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Send, Mail, Phone, MapPin } from 'lucide-react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase/firebase';
+import { db } from '@/lib/firebase/firebase'; // db might be null
 
 // Define Zod schema for form validation
 const contactSchema = z.object({
@@ -41,6 +41,14 @@ export default function ContactPage() {
   });
 
   const onSubmit: SubmitHandler<ContactFormData> = async (data) => {
+     if (!db) { // Check if db is available
+        toast({
+            title: "Error",
+            description: "Messaging service is currently unavailable. Please try again later.",
+            variant: "destructive",
+        });
+        return;
+     }
     setLoading(true);
     try {
       // Add contact message to Firestore 'contactMessages' collection
@@ -113,7 +121,7 @@ export default function ContactPage() {
                             <FormItem>
                               <FormLabel>Name</FormLabel>
                               <FormControl>
-                                <Input placeholder="Your Name" {...field} disabled={loading} />
+                                <Input placeholder="Your Name" {...field} disabled={loading || !db} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -126,7 +134,7 @@ export default function ContactPage() {
                             <FormItem>
                               <FormLabel>Email</FormLabel>
                               <FormControl>
-                                <Input type="email" placeholder="your.email@example.com" {...field} disabled={loading} />
+                                <Input type="email" placeholder="your.email@example.com" {...field} disabled={loading || !db} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -140,7 +148,7 @@ export default function ContactPage() {
                         <FormItem>
                           <FormLabel>Subject</FormLabel>
                           <FormControl>
-                            <Input placeholder="Question about..." {...field} disabled={loading} />
+                            <Input placeholder="Question about..." {...field} disabled={loading || !db} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -153,16 +161,17 @@ export default function ContactPage() {
                         <FormItem>
                           <FormLabel>Message</FormLabel>
                           <FormControl>
-                            <Textarea placeholder="Type your message here..." {...field} disabled={loading} rows={5} />
+                            <Textarea placeholder="Type your message here..." {...field} disabled={loading || !db} rows={5} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                    <Button type="submit" disabled={loading} className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent/90">
+                    <Button type="submit" disabled={loading || !db} className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent/90">
                       {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                       {loading ? 'Sending...' : 'Send Message'}
                     </Button>
+                    {!db && <p className="text-sm text-destructive text-center mt-2">Messaging service unavailable.</p>}
                   </form>
                 </Form>
               </CardContent>

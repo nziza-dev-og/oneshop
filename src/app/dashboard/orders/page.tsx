@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import { collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase/firebase';
+import { db } from '@/lib/firebase/firebase'; // db might be null
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
 import type { CartItem } from '@/types'; // Assuming CartItem includes product details
+import { useToast } from '@/hooks/use-toast'; // Import useToast
 
 interface Order {
   id: string;
@@ -28,10 +29,11 @@ export default function DashboardOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter(); // Keep router if needed, remove if unused
+  const { toast } = useToast(); // Initialize toast
 
   useEffect(() => {
     // Auth check handled by layout
-    if (user) {
+    if (user && db) { // Check db
       const fetchOrders = async () => {
         setLoading(true);
         try {
@@ -68,17 +70,20 @@ export default function DashboardOrdersPage() {
           setOrders(fetchedOrders);
         } catch (error) {
           console.error("Error fetching orders:", error);
-          // Handle error display if needed
+          toast({ title: "Error", description: "Could not fetch your orders.", variant: "destructive" });
         } finally {
           setLoading(false);
         }
       };
       fetchOrders();
-    } else if (!authLoading) {
+    } else if (!authLoading && !user) {
         // Redirect logic remains in layout, this is a fallback
        router.push('/login');
+    } else if (!db) {
+        setLoading(false);
+        toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
     }
-  }, [user, authLoading, router]); // Removed router if unused
+  }, [user, authLoading, router, toast]); // Added toast to dependencies
 
    // Loading state handled by dashboard layout, but keep skeleton for data fetching
    if (loading) {
@@ -128,6 +133,11 @@ export default function DashboardOrdersPage() {
   if (!user) {
     return <div>Loading user data or redirecting...</div>;
   }
+
+  if (!db) {
+       return <div className="text-center text-destructive">Database service is unavailable. Cannot load orders.</div>;
+  }
+
 
   return (
     <div>

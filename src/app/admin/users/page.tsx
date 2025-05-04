@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase/firebase';
+import { collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore'; // Import Timestamp
+import { db } from '@/lib/firebase/firebase'; // db might be null
 import type { UserProfile } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -18,14 +18,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Timestamp } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast'; // Import useToast
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
   // Auth check is handled by layout
 
   useEffect(() => {
+    if (!db) { // Check if db is available
+        setLoading(false);
+        toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
+        return;
+    }
+
     const fetchUsers = async () => {
       setLoading(true);
       try {
@@ -56,13 +63,13 @@ export default function AdminUsersPage() {
         setUsers(fetchedUsers);
       } catch (error) {
         console.error("Error fetching users:", error);
-        // Handle error display
+        toast({ title: "Error", description: "Could not fetch users.", variant: "destructive" });
       } finally {
         setLoading(false);
       }
     };
     fetchUsers();
-  }, []);
+  }, [toast]); // Added toast to dependency array
 
   if (loading) {
     return (
@@ -101,6 +108,11 @@ export default function AdminUsersPage() {
       </div>
     );
   }
+
+   if (!db) {
+       return <div className="text-center text-destructive">Database service is unavailable. Cannot load users.</div>;
+   }
+
 
   return (
     <div>

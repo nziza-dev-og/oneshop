@@ -8,7 +8,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ShoppingBag, Users, BarChart3, DollarSign } from "lucide-react"; // Import icons
 import { collection, getDocs, query, where, Timestamp, onSnapshot } from 'firebase/firestore'; // Import onSnapshot
-import { db } from '@/lib/firebase/firebase';
+import { db } from '@/lib/firebase/firebase'; // db might be null
 
 
 export default function AdminOverviewPage() {
@@ -19,7 +19,7 @@ export default function AdminOverviewPage() {
   const [totalRevenue, setTotalRevenue] = useState<number | null>(null);
 
   useEffect(() => {
-      if (!authLoading && isAdmin) {
+      if (!authLoading && isAdmin && db) { // Check db
         setStatsLoading(true);
 
         // Listener for total orders count
@@ -64,6 +64,10 @@ export default function AdminOverviewPage() {
         };
       } else if (!authLoading && !isAdmin) {
           setStatsLoading(false); // Not admin, stop loading
+      } else if (!db) {
+          setStatsLoading(false); // db not available, stop loading
+          console.error("Database service not available for admin overview.");
+          // Optionally show a toast or message
       }
   }, [authLoading, isAdmin]);
 
@@ -86,13 +90,18 @@ export default function AdminOverviewPage() {
       return <div>Access Denied.</div>
   }
 
+   if (!db) {
+       return <div className="text-center text-destructive">Database service is unavailable. Cannot load overview data.</div>;
+   }
+
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">Admin Overview</h1>
       <p className="text-muted-foreground mb-6">Welcome, {user?.displayName || user?.email}. Manage your store here.</p>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* Quick Stats Cards - Replace with actual data fetching later */}
+        {/* Quick Stats Cards */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Orders</CardTitle>

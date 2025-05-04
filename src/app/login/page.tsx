@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase/firebase';
+import { auth } from '@/lib/firebase/firebase'; // auth might be null
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,6 +23,13 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
+
+    if (!auth) {
+      setError("Authentication service is not available. Please try again later.");
+      toast({ title: "Login Failed", description: "Authentication service unavailable.", variant: "destructive" });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -77,7 +84,7 @@ export default function LoginPage() {
               />
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || !auth}> {/* Disable if auth not ready */}
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {loading ? 'Logging in...' : 'Login'}
             </Button>

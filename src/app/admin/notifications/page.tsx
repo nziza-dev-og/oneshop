@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/providers/auth-provider';
-import { db } from '@/lib/firebase/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, Timestamp, where, doc, deleteDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase/firebase'; // db might be null
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, Timestamp, where, doc, deleteDoc, getDocs } from 'firebase/firestore'; // Added getDocs
 import type { Notification, UserProfile } from '@/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,34 +38,39 @@ export default function AdminNotificationsPage() {
     const [notificationType, setNotificationType] = useState<'general' | 'promotion' | 'system_alert'>('general');
     const { toast } = useToast();
 
-    // Fetch all users for the dropdown (only needed if sending to specific users)
+    // Fetch all users for the dropdown
     useEffect(() => {
-        if (isAdmin) {
+        if (isAdmin && db) { // Check db
             const fetchUsers = async () => {
                 try {
                     const usersRef = collection(db, 'users');
                     const q = query(usersRef, orderBy('email')); // Sort by email
-                    const snapshot = await getDocs(usersRef);
+                    const snapshot = await getDocs(q); // Use imported getDocs
                     const usersData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
                     setAllUsers(usersData);
                 } catch (error) {
                     console.error("Error fetching users:", error);
+                    toast({ title: "Error", description: "Could not load users for targeting.", variant: "destructive" });
                 }
             };
             fetchUsers();
+        } else if (isAdmin && !db) {
+            toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
         }
-    }, [isAdmin]);
+    }, [isAdmin, toast]);
 
-    // Fetch sent notifications (can be refined based on what admins should see)
+    // Fetch sent notifications
     useEffect(() => {
-        if (!isAdmin) {
+        if (!isAdmin || !db) { // Check db
             setLoading(false);
+             if (!db && isAdmin) {
+                toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
+            }
             return;
         }
 
         setLoading(true);
         const notificationsRef = collection(db, 'notifications');
-        // Query all notifications sent by anyone (or filter by admin ID if needed)
         const q = query(notificationsRef, orderBy('createdAt', 'desc'));
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -100,14 +105,14 @@ export default function AdminNotificationsPage() {
 
     const handleSendNotification = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!isAdmin || !newMessage.trim() || !targetUser) {
-            toast({ title: "Error", description: "Please fill in all fields.", variant: "destructive" });
+        if (!isAdmin || !newMessage.trim() || !targetUser || !db) { // Check db
+            toast({ title: "Error", description: "Please fill in all fields or database service is unavailable.", variant: "destructive" });
             return;
         }
 
         setIsSending(true);
         try {
-            const notificationData: Omit<Notification, 'id' | 'read' | 'createdAt'> = {
+            const notificationData: Omit<Notification, 'id' | 'createdAt'> = {
                 userId: targetUser, // 'all', 'admin', or specific UID
                 message: newMessage.trim(),
                 type: notificationType,
@@ -131,7 +136,7 @@ export default function AdminNotificationsPage() {
     };
 
     const handleDeleteNotification = async (notificationId: string) => {
-        if (!isAdmin) return;
+        if (!isAdmin || !db) return; // Check db
         // Consider adding a loading state per item if needed
         const notificationRef = doc(db, 'notifications', notificationId);
         try {
@@ -150,6 +155,10 @@ export default function AdminNotificationsPage() {
 
     if (!isAdmin && !authLoading) {
         return <div className="text-center text-muted-foreground">Access Denied.</div>;
+    }
+
+    if (!db) {
+         return <div className="text-center text-destructive">Database service is unavailable.</div>;
     }
 
 
@@ -304,11 +313,3 @@ export default function AdminNotificationsPage() {
         </div>
     );
 }
-
-// Helper function to fetch user details - might be needed if displaying user names
-async function getDocs(queryRef: any) {
-    const snapshot = await getDocs(queryRef); // Replace with actual getDocs import if needed
-    return snapshot;
-}
-
-

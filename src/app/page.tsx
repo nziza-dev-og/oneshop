@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ProductCard } from '@/components/product-card';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
-import { db } from '@/lib/firebase/firebase';
+import { db } from '@/lib/firebase/firebase'; // db might be null
 import type { Product } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +18,11 @@ export default function HomePage() {
   const { toast } = useToast();
 
   useEffect(() => {
+    if (!db) { // Check if db is available
+        setLoading(false);
+        toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
+        return;
+    }
     const fetchProducts = async () => {
       setLoading(true);
       try {
@@ -168,6 +173,15 @@ export default function HomePage() {
               </div>
             ))}
           </div>
+        ) : !db ? ( // Check if db is available
+           <motion.div
+                className="text-center text-destructive py-16"
+                initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeIn}
+            >
+                <ShoppingBag className="mx-auto h-16 w-16 mb-4 text-destructive/50" />
+                <p className="text-xl font-semibold">Database service unavailable.</p>
+                <p className="text-md">Could not load products.</p>
+            </motion.div>
         ) : products.length === 0 ? (
           <motion.div
             className="text-center text-muted-foreground py-16"

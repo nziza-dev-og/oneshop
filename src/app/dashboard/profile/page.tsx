@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import { updateProfile } from 'firebase/auth';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase/firebase';
+import { auth, db } from '@/lib/firebase/firebase'; // auth and db might be null
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,7 +26,7 @@ export default function DashboardProfilePage() {
 
   useEffect(() => {
     // Authentication check is now handled by the dashboard layout
-    if (user) {
+    if (user && db) { // Ensure db is also ready
       // Fetch user data from Firestore to get potentially updated display name
       const fetchUserData = async () => {
         setFetching(true); // Start fetching state
@@ -58,14 +58,19 @@ export default function DashboardProfilePage() {
     } else if (!authLoading && !user) {
        // Redirect logic remains in layout, this is a fallback
        router.push('/login');
+    } else if (!db) {
+        console.error("Firestore is not available for fetching profile.");
+        setFetching(false); // Stop fetching if db is not ready
+        toast({ title: "Error", description: "Could not load profile data.", variant: "destructive"});
     }
   }, [user, authLoading, toast, router]); // Removed router from dependencies if not used for redirection
 
 
   const handleUpdateProfile = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user || !auth.currentUser) { // Added check for auth.currentUser
-        toast({ title: "Error", description: "User not found.", variant: "destructive" });
+    // Ensure auth and db are available
+    if (!user || !auth || !auth.currentUser || !db) {
+        toast({ title: "Error", description: "User not found or service unavailable.", variant: "destructive" });
         return;
     }
 
@@ -136,7 +141,7 @@ export default function DashboardProfilePage() {
                 placeholder="Your Name"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                disabled={loading}
+                disabled={loading || !auth || !db} // Disable if services not ready
               />
             </div>
             <div className="space-y-2">
@@ -150,7 +155,7 @@ export default function DashboardProfilePage() {
               />
                <p className="text-xs text-muted-foreground">Email cannot be changed here.</p>
             </div>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || !auth || !db}> {/* Disable if services not ready */}
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {loading ? 'Saving...' : 'Save Changes'}
             </Button>

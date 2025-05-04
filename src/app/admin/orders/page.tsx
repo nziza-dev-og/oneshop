@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import { collection, query, getDocs, orderBy, doc, getDoc, Timestamp, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore'; // Import Timestamp, updateDoc, addDoc, serverTimestamp
-import { db } from '@/lib/firebase/firebase';
+import { db } from '@/lib/firebase/firebase'; // db might be null
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -53,7 +53,7 @@ export default function AdminOrdersPage() {
 
   useEffect(() => {
     // Auth checks handled by layout
-    if (!authLoading && isAdmin) {
+    if (!authLoading && isAdmin && db) { // Check db
       const fetchOrders = async () => {
         setLoading(true);
         try {
@@ -113,10 +113,17 @@ export default function AdminOrdersPage() {
       fetchOrders();
     } else if (!authLoading && !isAdmin) {
        // Redirect logic in layout handles non-admins
+    } else if (!db) {
+        setLoading(false);
+        toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
     }
   }, [user, authLoading, isAdmin, router, toast]); // Dependency array updated
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
+    if (!db) { // Check db
+        toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
+        return;
+    }
     setUpdatingOrderId(orderId); // Set loading state for this specific order
     const orderToUpdate = orders.find(o => o.id === orderId);
 
@@ -143,7 +150,7 @@ export default function AdminOrdersPage() {
       });
 
       // Send notification to the user
-      if (newStatus === 'Delivered' || newStatus === 'Cancelled') {
+      if ((newStatus === 'Delivered' || newStatus === 'Cancelled') && db) { // Check db for notification sending
          try {
              const notificationMessage = newStatus === 'Delivered'
                 ? `Your order #${orderId.substring(0, 6)}... has been delivered!`
@@ -216,6 +223,11 @@ export default function AdminOrdersPage() {
        </div>
      );
    }
+
+  if (!db) {
+       return <div className="text-center text-destructive">Database service is unavailable.</div>;
+  }
+
 
   // If not loading and is admin (layout should ensure this)
   return (
@@ -344,3 +356,4 @@ export default function AdminOrdersPage() {
 }
 
     
+

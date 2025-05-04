@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ProductCard } from '@/components/product-card';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase/firebase';
+import { db } from '@/lib/firebase/firebase'; // db might be null
 import type { Product } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -22,6 +22,11 @@ export default function ProductsPage() {
   const initialCategory = searchParams.get('category') || ''; // Get category from URL
 
   useEffect(() => {
+    if (!db) { // Check if db is available
+        setLoading(false);
+        toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
+        return;
+    }
     const fetchProducts = async () => {
       setLoading(true);
       try {
@@ -63,7 +68,7 @@ export default function ProductsPage() {
           tempProducts = tempProducts.filter(product =>
               product.name.toLowerCase().includes(lowerCaseSearchTerm) ||
               product.description.toLowerCase().includes(lowerCaseSearchTerm) ||
-              product.imageHint.toLowerCase().includes(lowerCaseSearchTerm) // Search image hint too
+              (product.imageHint && product.imageHint.toLowerCase().includes(lowerCaseSearchTerm)) // Search image hint too, check if exists
           );
       }
 
@@ -129,7 +134,15 @@ export default function ProductsPage() {
               </div>
           ))}
         </div>
-      ) : filteredProducts.length === 0 ? (
+      ) : !db ? ( // Check if db is available
+           <motion.div
+                className="text-center text-destructive py-16"
+                initial="hidden" animate="visible" variants={fadeIn}
+            >
+                <p className="text-xl font-semibold">Database service unavailable.</p>
+                <p className="text-md">Could not load products.</p>
+            </motion.div>
+       ) : filteredProducts.length === 0 ? (
         // No Products Message
          <motion.div
             className="text-center text-muted-foreground py-16"

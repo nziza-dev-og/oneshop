@@ -6,7 +6,7 @@ import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase/firebase';
+import { db } from '@/lib/firebase/firebase'; // db might be null
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -50,6 +50,11 @@ export default function AddProductPage() {
         toast({ title: "Error", description: "Unauthorized action.", variant: "destructive" });
         return;
     }
+    if (!db) { // Check if db is available
+        toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
+        return;
+    }
+
     setLoading(true);
     try {
       // Add product to Firestore 'products' collection
@@ -77,6 +82,11 @@ export default function AddProductPage() {
     if (!isAdmin && !authLoading) {
         return <div className="text-center text-muted-foreground">Access Denied.</div>;
     }
+
+     if (!db) {
+         return <div className="text-center text-destructive">Database service is unavailable. Cannot add product.</div>;
+     }
+
 
   return (
     <Card className="w-full max-w-3xl mx-auto shadow-lg">

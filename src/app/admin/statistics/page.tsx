@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/providers/auth-provider';
 import { collection, query, getDocs, orderBy, where, Timestamp, count } from 'firebase/firestore';
-import { db } from '@/lib/firebase/firebase';
+import { db } from '@/lib/firebase/firebase'; // db might be null
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -48,7 +48,7 @@ export default function AdminStatisticsPage() {
    const { toast } = useToast();
 
    useEffect(() => {
-     if (!authLoading && isAdmin) {
+     if (!authLoading && isAdmin && db) { // Check db
        const fetchData = async () => {
          setLoading(true);
          try {
@@ -146,6 +146,9 @@ export default function AdminStatisticsPage() {
          }
        };
        fetchData();
+     } else if (!db) {
+        setLoading(false);
+        toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
      }
    }, [isAdmin, authLoading, toast]);
 
@@ -170,6 +173,10 @@ export default function AdminStatisticsPage() {
     // Layout should handle non-admin access, but adding a fallback check
    if (!isAdmin && !authLoading) {
         return <div className="text-center text-muted-foreground py-10">Access Denied.</div>;
+   }
+
+   if (!db) {
+        return <div className="text-center text-destructive">Database service is unavailable. Cannot load statistics.</div>;
    }
 
 

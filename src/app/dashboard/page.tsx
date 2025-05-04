@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { collection, query, where, getDocs, orderBy, limit, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase/firebase';
+import { db } from '@/lib/firebase/firebase'; // db might be null
 import type { Order } from '@/types'; // Assuming Order type exists
 import { useCart } from '@/hooks/useCart'; // Import useCart for wishlist count
 import { Heart, Package } from 'lucide-react'; // Import icons
@@ -21,7 +21,7 @@ export default function DashboardOverviewPage() {
 
    useEffect(() => {
      setIsClient(true); // Component has mounted
-     if (!authLoading && user) {
+     if (!authLoading && user && db) { // Check db
        const fetchRecentOrders = async () => {
          setOrdersLoading(true);
          try {
@@ -45,6 +45,7 @@ export default function DashboardOverviewPage() {
                    orderDate = data.orderDate;
                }
                 else {
+                 console.warn(`Invalid date format for order ${doc.id}:`, data.orderDate);
                  orderDate = new Date(); // Fallback
                }
              return {
@@ -67,6 +68,10 @@ export default function DashboardOverviewPage() {
        fetchRecentOrders();
      } else if (!authLoading && !user) {
          setOrdersLoading(false); // Not logged in, stop loading
+     } else if (!db) {
+         setOrdersLoading(false); // db not available, stop loading
+         console.error("Database service not available for dashboard overview.");
+         // Optionally show a toast or message
      }
    }, [authLoading, user]);
 
@@ -93,6 +98,10 @@ export default function DashboardOverviewPage() {
   if (!user) {
       // This should ideally be handled by the layout, but as a fallback
       return <div>Please log in to view your dashboard.</div>
+  }
+
+  if (!db) {
+      return <div className="text-center text-destructive">Database service is unavailable. Cannot load dashboard data.</div>;
   }
 
   return (

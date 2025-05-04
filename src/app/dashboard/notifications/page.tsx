@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/providers/auth-provider';
-import { db } from '@/lib/firebase/firebase';
-import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, writeBatch, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase/firebase'; // db might be null
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, writeBatch, Timestamp, deleteDoc } from 'firebase/firestore'; // Added Timestamp and deleteDoc
 import type { Notification } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { ScrollArea } from '@/components/ui/scroll-area'; // Import ScrollArea
 
 export default function AllNotificationsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -32,10 +33,13 @@ export default function AllNotificationsPage() {
   const { toast } = useToast();
 
    useEffect(() => {
-    if (!user) {
+    if (!user || !db) { // Check db
       setNotifications([]);
       setLoading(false);
-      return; // No user, no notifications
+       if (!db && user) {
+           toast({ title: "Error", description: "Notification service unavailable.", variant: "destructive" });
+       }
+      return; // No user or db not ready
     }
 
     setLoading(true);
@@ -59,6 +63,7 @@ export default function AllNotificationsPage() {
          } else if (data.createdAt instanceof Date) {
              createdAt = data.createdAt;
          } else {
+              console.warn(`Invalid date format for notification ${doc.id}:`, data.createdAt);
              createdAt = new Date(); // Fallback
          }
 
@@ -86,7 +91,7 @@ export default function AllNotificationsPage() {
    }, [user, toast]);
 
   const handleMarkAsRead = async (notificationId: string) => {
-     if (!user) return;
+     if (!user || !db) return; // Check db
      const notificationRef = doc(db, 'notifications', notificationId);
      try {
        await updateDoc(notificationRef, { read: true });
@@ -98,7 +103,7 @@ export default function AllNotificationsPage() {
   };
 
    const handleMarkAllAsRead = async () => {
-    if (!user || notifications.filter(n => !n.read).length === 0) return;
+    if (!user || !db || notifications.filter(n => !n.read).length === 0) return; // Check db
 
     const batch = writeBatch(db);
     notifications.forEach(notification => {
@@ -118,20 +123,14 @@ export default function AllNotificationsPage() {
   };
 
    const handleDeleteNotification = async (notificationId: string) => {
-        if (!user) return;
+        if (!user || !db) return; // Check db
         setIsDeleting(true); // Optional: Show loading state on specific item
         const notificationRef = doc(db, 'notifications', notificationId);
         try {
-            // **Important:** Decide if users can *actually* delete notifications.
-            // Usually, marking as read is sufficient. Deleting might require
-            // specific Firestore rules or cloud functions for security.
-            // For now, let's *simulate* deletion by just removing from state
-            // and showing a toast. Replace with actual deletion logic if implemented.
-
-            // await deleteDoc(notificationRef); // Uncomment for actual deletion
-
-            setNotifications(prev => prev.filter(n => n.id !== notificationId)); // Simulate removal
-            toast({ title: "Notification Removed", description: "The notification has been removed." });
+            // Implement actual deletion
+            await deleteDoc(notificationRef);
+            // Listener will update the list, no need for manual state removal here
+            toast({ title: "Notification Deleted", description: "The notification has been permanently removed." });
 
         } catch (error) {
             console.error("Error deleting notification:", error);
@@ -142,6 +141,19 @@ export default function AllNotificationsPage() {
     };
 
     const unreadCount = notifications.filter(n => !n.read).length;
+
+    if (authLoading) {
+        return <Skeleton className="h-64 w-full" />;
+    }
+
+     if (!user && !authLoading) {
+        return <div className="text-center text-muted-foreground">Please log in to view notifications.</div>;
+    }
+
+    if (!db) {
+        return <div className="text-center text-destructive">Notification service is unavailable.</div>;
+    }
+
 
   return (
     <div>
@@ -180,72 +192,74 @@ export default function AllNotificationsPage() {
                 <p>You haven't received any notifications yet.</p>
              </div>
           ) : (
-             <div className="space-y-4">
-                {notifications.map((notification) => {
-                   const timeAgo = notification.createdAt ? formatDistanceToNow(notification.createdAt, { addSuffix: true }) : 'just now';
-                   const isUnread = !notification.read;
+             <ScrollArea className="h-[60vh] pr-4"> {/* Wrap list in ScrollArea */}
+                 <div className="space-y-4">
+                    {notifications.map((notification) => {
+                       const timeAgo = notification.createdAt ? formatDistanceToNow(notification.createdAt, { addSuffix: true }) : 'just now';
+                       const isUnread = !notification.read;
 
-                   const content = (
-                        <div className="flex-1 space-y-1 mr-4">
-                            <p className={`text-sm font-medium ${isUnread ? 'text-foreground' : 'text-muted-foreground'}`}>{notification.message}</p>
-                            <p className="text-xs text-muted-foreground">{timeAgo}</p>
-                        </div>
-                    );
-
-                    return (
-                        <div
-                            key={notification.id}
-                            className={`flex items-start space-x-3 p-4 border rounded-lg transition-colors ${isUnread ? 'bg-muted/30' : 'bg-background'} hover:bg-muted/50`}
-                        >
-                            {isUnread && <span className="mt-1 h-2 w-2 rounded-full bg-primary flex-shrink-0" aria-label="Unread" />}
-                             {!isUnread && <span className="mt-1 h-2 w-2 rounded-full bg-transparent flex-shrink-0" aria-hidden="true" />} {/* Alignment placeholder */}
-
-                             {notification.link ? (
-                                <Link href={notification.link} className="flex-1 flex items-start" onClick={() => !isUnread || handleMarkAsRead(notification.id)}>
-                                     {content}
-                                </Link>
-                             ) : (
-                                <div className="flex-1 flex items-start cursor-pointer" onClick={() => !isUnread || handleMarkAsRead(notification.id)}>
-                                     {content}
-                                </div>
-                             )}
-
-                             {/* Actions */}
-                             <div className="flex items-center space-x-1">
-                                 {isUnread && (
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleMarkAsRead(notification.id)} aria-label="Mark as read">
-                                         <CheckCheck className="h-4 w-4 text-muted-foreground hover:text-primary" />
-                                    </Button>
-                                 )}
-                                  <AlertDialog>
-                                     <AlertDialogTrigger asChild>
-                                         <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Delete notification" disabled={isDeleting}>
-                                             <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                                         </Button>
-                                     </AlertDialogTrigger>
-                                     <AlertDialogContent>
-                                         <AlertDialogHeader>
-                                             <AlertDialogTitle>Remove Notification?</AlertDialogTitle>
-                                             <AlertDialogDescription>
-                                                 Are you sure you want to remove this notification? This action cannot be undone.
-                                             </AlertDialogDescription>
-                                         </AlertDialogHeader>
-                                         <AlertDialogFooter>
-                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                             <AlertDialogAction
-                                                 onClick={() => handleDeleteNotification(notification.id)}
-                                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                             >
-                                                 Remove
-                                             </AlertDialogAction>
-                                         </AlertDialogFooter>
-                                     </AlertDialogContent>
-                                 </AlertDialog>
+                       const content = (
+                            <div className="flex-1 space-y-1 mr-4">
+                                <p className={`text-sm font-medium ${isUnread ? 'text-foreground' : 'text-muted-foreground'}`}>{notification.message}</p>
+                                <p className="text-xs text-muted-foreground">{timeAgo}</p>
                             </div>
-                        </div>
-                    );
-                })}
-             </div>
+                        );
+
+                        return (
+                            <div
+                                key={notification.id}
+                                className={`flex items-start space-x-3 p-4 border rounded-lg transition-colors ${isUnread ? 'bg-muted/30' : 'bg-background'} hover:bg-muted/50`}
+                            >
+                                {isUnread && <span className="mt-1 h-2 w-2 rounded-full bg-primary flex-shrink-0" aria-label="Unread" />}
+                                 {!isUnread && <span className="mt-1 h-2 w-2 rounded-full bg-transparent flex-shrink-0" aria-hidden="true" />} {/* Alignment placeholder */}
+
+                                 {notification.link ? (
+                                    <Link href={notification.link} className="flex-1 flex items-start" onClick={() => !isUnread || handleMarkAsRead(notification.id)}>
+                                         {content}
+                                    </Link>
+                                 ) : (
+                                    <div className="flex-1 flex items-start cursor-pointer" onClick={() => !isUnread || handleMarkAsRead(notification.id)}>
+                                         {content}
+                                    </div>
+                                 )}
+
+                                 {/* Actions */}
+                                 <div className="flex items-center space-x-1">
+                                     {isUnread && (
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleMarkAsRead(notification.id)} aria-label="Mark as read">
+                                             <CheckCheck className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                                        </Button>
+                                     )}
+                                      <AlertDialog>
+                                         <AlertDialogTrigger asChild>
+                                             <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Delete notification" disabled={isDeleting}>
+                                                 <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                                             </Button>
+                                         </AlertDialogTrigger>
+                                         <AlertDialogContent>
+                                             <AlertDialogHeader>
+                                                 <AlertDialogTitle>Remove Notification?</AlertDialogTitle>
+                                                 <AlertDialogDescription>
+                                                     Are you sure you want to permanently delete this notification? This action cannot be undone.
+                                                 </AlertDialogDescription>
+                                             </AlertDialogHeader>
+                                             <AlertDialogFooter>
+                                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                 <AlertDialogAction
+                                                     onClick={() => handleDeleteNotification(notification.id)}
+                                                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                 >
+                                                     Delete Permanently
+                                                 </AlertDialogAction>
+                                             </AlertDialogFooter>
+                                         </AlertDialogContent>
+                                     </AlertDialog>
+                                </div>
+                            </div>
+                        );
+                    })}
+                 </div>
+             </ScrollArea>
           )}
         </CardContent>
       </Card>

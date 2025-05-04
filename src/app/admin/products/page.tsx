@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { collection, getDocs, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase/firebase';
+import { db } from '@/lib/firebase/firebase'; // db might be null
 import type { Product } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -33,7 +33,7 @@ export default function AdminProductsPage() {
   const { isAdmin, loading: authLoading } = useAuth(); // Check admin status
 
   useEffect(() => {
-     if (!authLoading && isAdmin) {
+     if (!authLoading && isAdmin && db) { // Check db
         const fetchProducts = async () => {
           setLoading(true);
           try {
@@ -55,11 +55,14 @@ export default function AdminProductsPage() {
         fetchProducts();
      } else if (!authLoading && !isAdmin) {
          setLoading(false); // Stop loading if not admin
+     } else if (!db) {
+         setLoading(false); // Stop loading if db not available
+         toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
      }
   }, [isAdmin, authLoading, toast]);
 
   const handleDeleteProduct = async (productId: string) => {
-    if (!isAdmin) return;
+    if (!isAdmin || !db) return; // Check db
     setDeletingProductId(productId);
     try {
       const productDocRef = doc(db, 'products', productId);
@@ -115,6 +118,10 @@ export default function AdminProductsPage() {
 
    if (!isAdmin && !authLoading) {
         return <div className="text-center text-muted-foreground">Access Denied.</div>;
+    }
+
+    if (!db) {
+        return <div className="text-center text-destructive">Database service is unavailable. Cannot load products.</div>;
     }
 
 

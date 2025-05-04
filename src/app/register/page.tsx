@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase/firebase';
+import { auth, db } from '@/lib/firebase/firebase'; // auth and db might be null
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,6 +29,13 @@ export default function RegisterPage() {
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
+
+    if (!auth || !db) {
+      setError("Registration service is not available. Please try again later.");
+      toast({ title: "Registration Failed", description: "Registration service unavailable.", variant: "destructive" });
+      return;
+    }
+
 
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
@@ -155,7 +162,7 @@ export default function RegisterPage() {
                 </p>
               </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || !auth || !db}> {/* Disable if auth/db not ready */}
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {loading ? 'Registering...' : 'Register'}
             </Button>
