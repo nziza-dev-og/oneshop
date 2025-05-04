@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input"; // Keep if needed elsewhere, unused currently
+import { Input } from '@/components/ui/input'; // Keep if needed elsewhere, unused currently
 import { useCart } from '@/hooks/useCart';
 import Image from 'next/image';
 import { Trash2, ShoppingCart, Minus, Plus, Loader2 } from 'lucide-react';
@@ -95,15 +95,20 @@ export function CartSheet() {
       }
 
       console.log("[Checkout] Attempting redirectToCheckout with sessionId:", sessionId); // Log before redirect
-      // THIS IS THE LINE CAUSING THE ERROR
-      const { error } = await stripe.redirectToCheckout({ sessionId });
-      // If redirectToCheckout is successful, the code below this line might not execute as the page navigates away.
 
+      // Potential Issue: In environments like IDX previews which use iframes,
+      // redirectToCheckout might fail due to cross-origin navigation restrictions.
+      // The browser might block the iframe from redirecting the top-level window.
+      // If this error persists ("Failed to set a named property 'href' on 'Location'"),
+      // consider using Stripe Elements for an embedded checkout experience.
+      const { error } = await stripe.redirectToCheckout({ sessionId });
+
+      // If redirectToCheckout is successful, the code below this line might not execute as the page navigates away.
       if (error) {
         console.error('[Checkout] Stripe redirect error:', error); // Log redirect error
         toast({
           title: "Checkout Error",
-          description: error.message || "Failed to redirect to Stripe.",
+          description: error.message || "Failed to redirect to Stripe. This might be due to the preview environment.",
           variant: "destructive",
         });
       } else {
