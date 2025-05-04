@@ -6,6 +6,7 @@ import { Footer } from '@/components/footer'; // Import Footer
 import { Toaster } from "@/components/ui/toaster"
 import { cn } from "@/lib/utils";
 import { AuthProvider } from '@/providers/auth-provider'; // Import AuthProvider
+import { Chatbot } from '@/components/chatbot'; // Import the Chatbot component
 
 const inter = Inter({
   subsets: ['latin'],
@@ -35,6 +36,7 @@ export default function RootLayout({
           <Header />
           <main className="flex-1">{children}</main>
           <Footer /> {/* Add Footer here */}
+          <Chatbot /> {/* Add Chatbot component */}
           <Toaster />
         </AuthProvider>
       </body>
