@@ -1,5 +1,5 @@
 
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, Timestamp } from 'firebase/firestore'; // Import Timestamp
 import { db } from '@/lib/firebase/firebase';
 import type { Product } from '@/types';
 import { notFound } from 'next/navigation';
@@ -24,7 +24,17 @@ async function getProduct(id: string): Promise<Product | null> {
     }
 
     const data = productSnap.data();
-    // Convert Firestore Timestamp to Date if necessary (though Product type allows Timestamp)
+    let createdAtMillis: number | null = null;
+
+    // Convert Firestore Timestamp to milliseconds (number) for serialization
+    if (data.createdAt && data.createdAt instanceof Timestamp) {
+        createdAtMillis = data.createdAt.toMillis();
+    } else if (data.createdAt instanceof Date) {
+        // Handle case where it might already be a Date (less likely from Firestore directly)
+        createdAtMillis = data.createdAt.getTime();
+    }
+
+    // Construct the Product object with serializable data
     const productData: Product = {
       id: productSnap.id,
       name: data.name,
@@ -32,8 +42,7 @@ async function getProduct(id: string): Promise<Product | null> {
       price: data.price,
       imageUrl: data.imageUrl,
       imageHint: data.imageHint,
-       // createdAt is optional in the type, handle its potential absence or type
-       createdAt: data.createdAt || null, // Ensure it fits Product type
+      createdAt: createdAtMillis, // Pass milliseconds or null
     };
     return productData;
   } catch (error) {
@@ -80,6 +89,7 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
   }
 
    // ProductDetailClient handles the client-side interactions
+   // Product object now contains serializable data (createdAt as number | null)
   return <ProductDetailClient product={product} />;
 }
 
@@ -102,4 +112,5 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
 //     </div>
 //   );
 // }
+
 

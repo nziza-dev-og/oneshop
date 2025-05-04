@@ -13,7 +13,7 @@ import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils'; // Import cn utility
 
 interface ProductDetailClientProps {
-  product: Product;
+  product: Product; // Receives Product with createdAt as number | null
 }
 
 export default function ProductDetailClient({ product }: ProductDetailClientProps) {
@@ -117,6 +117,12 @@ export default function ProductDetailClient({ product }: ProductDetailClientProp
              <p className="text-muted-foreground leading-relaxed">
                 {product.description}
              </p>
+              {/* Display creation date if needed, converting from milliseconds */}
+              {/* {product.createdAt && (
+                 <p className="text-xs text-muted-foreground mt-2">
+                    Added on: {new Date(product.createdAt).toLocaleDateString()}
+                 </p>
+              )} */}
            </motion.div>
 
           {/* Action Buttons */}
@@ -165,3 +171,4 @@ export default function ProductDetailClient({ product }: ProductDetailClientProp
     </div>
   );
 }
+

@@ -7,7 +7,7 @@ export interface Product {
   price: number;
   imageUrl: string;
   imageHint: string; // For AI image generation hint
-  createdAt?: Timestamp | Date | null; // Allow null or undefined if not set yet
+  createdAt?: number | null; // Changed to number (milliseconds) or null for serialization
 }
 
 export interface CartItem extends Product {
@@ -42,6 +42,9 @@ export interface Order {
   totalPrice: number;
   orderDate: Timestamp | Date | null; // Use Timestamp | Date | null
   status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled'; // Example statuses
+  stripeCheckoutSessionId?: string; // Added Stripe session ID
+  paymentStatus?: string; // Added payment status from Stripe
+  customerEmail?: string | null; // Added customer email
   // Add shippingAddress, paymentMethod etc. if needed
 }
 
@@ -80,3 +83,4 @@ export interface Address {
   isDefault?: boolean; // Optional: Mark as default shipping/billing
   type?: 'shipping' | 'billing' | 'both'; // Optional: Address type
 }
+
