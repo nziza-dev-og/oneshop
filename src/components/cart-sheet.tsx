@@ -74,36 +74,45 @@ export function CartSheet() {
 
       if (!response.ok) {
           const errorData = await response.json();
+          console.error("API Checkout Error:", errorData);
           throw new Error(errorData.error || 'Failed to create checkout session');
       }
 
       const { sessionId } = await response.json();
+      console.log("[Checkout] Received Session ID:", sessionId); // Log session ID
 
       if (!sessionId) {
           throw new Error('Invalid session ID received');
       }
 
       // 2. Redirect to Stripe Checkout
+      console.log("[Checkout] Attempting to load Stripe.js..."); // Log before loading Stripe
       const stripe = await getStripe();
+      console.log("[Checkout] Stripe object loaded:", stripe ? 'OK' : 'Failed'); // Log Stripe object status
+
       if (!stripe) {
           throw new Error('Stripe.js failed to load.');
       }
 
+      console.log("[Checkout] Attempting redirectToCheckout with sessionId:", sessionId); // Log before redirect
+      // THIS IS THE LINE CAUSING THE ERROR
       const { error } = await stripe.redirectToCheckout({ sessionId });
+      // If redirectToCheckout is successful, the code below this line might not execute as the page navigates away.
 
       if (error) {
-        console.error('Stripe redirect error:', error);
+        console.error('[Checkout] Stripe redirect error:', error); // Log redirect error
         toast({
           title: "Checkout Error",
           description: error.message || "Failed to redirect to Stripe.",
           variant: "destructive",
         });
+      } else {
+        console.log("[Checkout] Redirecting to Stripe..."); // Log success if no immediate error
       }
-      // If redirection is successful, the user will be taken to Stripe.
       // Order creation will now typically happen via Stripe webhooks listening for 'checkout.session.completed'.
 
     } catch (error: any) {
-      console.error("Checkout Error:", error);
+      console.error("[Checkout] Overall Checkout Error:", error); // Log any caught error
       toast({
         title: "Checkout Failed",
         description: error.message || "Could not initiate checkout. Please try again.",
