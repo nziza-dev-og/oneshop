@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
@@ -6,6 +5,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth, db, isConfigValid } from '@/lib/firebase/firebase'; // Import possibly null instances and isConfigValid
 import { doc, getDoc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton for loading state
+import { useToast } from "@/hooks/use-toast"; // Import useToast
 
 interface AuthContextType {
   user: User | null;
@@ -19,6 +19,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const { toast } = useToast(); // Get toast function
 
   useEffect(() => {
     // Only set up the listener if Firebase config is valid and auth/db instances exist
@@ -51,6 +52,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } else {
         // Firebase is not configured or initialized correctly
         console.error("AuthProvider: Firebase is not properly configured or initialized. Auth features disabled.");
+        toast({
+            title: "Error",
+            description: "Firebase configuration is invalid. Authentication features are disabled.",
+            variant: "destructive",
+        });
         setUser(null);
         setIsAdmin(false);
         setLoading(false); // Stop loading as auth state won't change

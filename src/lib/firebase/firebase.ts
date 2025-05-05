@@ -87,4 +87,3 @@ if (isConfigValid && typeof window !== 'undefined') { // Check for window object
 
 // Export potentially null values, components using them MUST check for null
 export { app, auth, db, analytics, isConfigValid };
-    
