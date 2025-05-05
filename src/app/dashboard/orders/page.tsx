@@ -13,6 +13,7 @@ import Image from 'next/image';
 import type { Order } from '@/types'; // Corrected type import
 import { useToast } from '@/hooks/use-toast'; // Import useToast
 import { ShoppingBag } from 'lucide-react'; // Import icon for empty state
+import { format } from 'date-fns'; // Import format for better date display
 
 // Renamed function
 export default function DashboardOrdersPage() {
@@ -23,24 +24,22 @@ export default function DashboardOrdersPage() {
   const { toast } = useToast(); // Initialize toast
 
   useEffect(() => {
+    // Ensure user is loaded, not loading, and db is available
     if (authLoading) {
-      setLoading(true);
+      setLoading(true); // Keep loading if auth state is still determining
       return;
     }
-
     if (!user) {
-      setLoading(false);
-      // Let layout handle redirection
-      return;
+       setLoading(false); // Stop loading if user is not logged in (layout handles redirect)
+       return;
     }
-
     if (!db) {
-      toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
-      setLoading(false);
-      return;
+       toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
+       setLoading(false); // Stop loading if DB is unavailable
+       return;
     }
 
-    setLoading(true);
+    setLoading(true); // Start loading orders
     const ordersRef = collection(db, 'orders');
     // Query orders for the current user, ordered by date descending
     const q = query(ordersRef, where('userId', '==', user.uid), orderBy('orderDate', 'desc'));
@@ -49,25 +48,27 @@ export default function DashboardOrdersPage() {
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const fetchedOrders = querySnapshot.docs.map(doc => {
         const data = doc.data();
-        let orderDate: Date;
+
+        // Robust date handling
+        let orderDate: Date | null = null;
         if (data.orderDate instanceof Timestamp) {
           orderDate = data.orderDate.toDate();
-        } else if (data.orderDate && typeof data.orderDate.seconds === 'number') {
-          orderDate = new Timestamp(data.orderDate.seconds, data.orderDate.nanoseconds).toDate();
-        } else if (data.orderDate instanceof Date){
-           orderDate = data.orderDate;
-        }
-        else {
-          console.warn(`Invalid or missing date format for order ${doc.id}:`, data.orderDate);
-          orderDate = new Date(); // Fallback
+        } else if (data.orderDate?.seconds && typeof data.orderDate.seconds === 'number') {
+          // Handle cases where it might be stored as an object { seconds: ..., nanoseconds: ... }
+          orderDate = new Timestamp(data.orderDate.seconds, data.orderDate.nanoseconds || 0).toDate();
+        } else if (data.orderDate instanceof Date) {
+          orderDate = data.orderDate; // Already a Date object
+        } else {
+           console.warn(`Invalid or missing date format for order ${doc.id}:`, data.orderDate);
+           // Keep orderDate as null if invalid/missing, handle display later
         }
 
         return {
           id: doc.id,
           userId: data.userId,
-          items: data.items,
-          totalPrice: data.totalPrice,
-          orderDate: orderDate,
+          items: data.items || [], // Ensure items array exists
+          totalPrice: data.totalPrice || 0, // Ensure totalPrice exists
+          orderDate: orderDate, // Assign the potentially null Date object
           status: data.status || 'Processing',
           stripeCheckoutSessionId: data.stripeCheckoutSessionId,
           paymentStatus: data.paymentStatus,
@@ -75,17 +76,18 @@ export default function DashboardOrdersPage() {
         } as Order;
       });
       setOrders(fetchedOrders);
-      setLoading(false);
+      setLoading(false); // Stop loading after fetching/processing
     }, (error) => { // Error handling for onSnapshot
       console.error("Error fetching orders:", error);
       toast({ title: "Error", description: "Could not fetch your orders.", variant: "destructive" });
-      setLoading(false);
+      setOrders([]); // Clear orders on error
+      setLoading(false); // Stop loading on error
     });
 
     // Cleanup subscription on unmount
     return () => unsubscribe();
 
-  }, [user, authLoading, toast]); // Depend on user, authLoading, and toast
+  }, [user, authLoading, toast]); // Added db to dependency array if it can change, though typically it doesn't
 
    // Loading state skeleton
    if (loading) {
@@ -149,9 +151,9 @@ export default function DashboardOrdersPage() {
           <CardContent className="pt-10 pb-10 text-center text-muted-foreground flex flex-col items-center justify-center space-y-3">
              <ShoppingBag className="h-12 w-12 text-muted-foreground/50" />
             <p className="text-lg">You haven't placed any orders yet.</p>
-            <button onClick={() => router.push('/')} className="text-primary hover:underline">
-                Start Shopping
-            </button>
+             <button onClick={() => router.push('/')} className="text-primary hover:underline">
+                 Start Shopping
+             </button>
           </CardContent>
         </Card>
       ) : (
@@ -163,12 +165,13 @@ export default function DashboardOrdersPage() {
                     <div>
                         <CardTitle className="text-lg font-semibold">Order #{order.id.substring(0, 8)}...</CardTitle>
                         <CardDescription className="text-xs text-muted-foreground">
-                          Placed on: {order.orderDate instanceof Date ? order.orderDate.toLocaleDateString() : 'N/A'} {/* Display date */}
+                           {/* Safely format date, provide fallback */}
+                           Placed on: {order.orderDate instanceof Date ? format(order.orderDate, 'PPP') : 'Date unavailable'}
                         </CardDescription>
                     </div>
                     <Badge
                         variant={order.status === 'Delivered' ? 'default' : order.status === 'Cancelled' ? 'destructive' : 'secondary'}
-                        className={`w-fit capitalize px-3 py-1 ${
+                        className={`w-fit capitalize px-3 py-1 text-sm ${
                             order.status === 'Processing' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
                             order.status === 'Shipped' ? 'bg-blue-100 text-blue-800 border-blue-200' :
                             order.status === 'Delivered' ? 'bg-green-100 text-green-800 border-green-200' :
