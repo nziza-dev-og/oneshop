@@ -22,8 +22,21 @@ const firebaseConfig: FirebaseOptions = {
 const isConfigValid = !!(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.authDomain && firebaseConfig.appId);
 
 if (!isConfigValid) {
-    console.error("Essential Firebase configuration (apiKey, projectId, authDomain, appId) is missing or invalid. Ensure NEXT_PUBLIC_FIREBASE_* environment variables are correctly set in your environment.");
+    console.error("Firebase configuration is missing or invalid. Ensure NEXT_PUBLIC_FIREBASE_* environment variables are correctly set in your environment.");
     console.error("Current Firebase config:", firebaseConfig); // Log the config
+    // Depending on the desired behavior, you might throw an error here
+    // or allow the app to continue with potentially broken Firebase functionality.
+    // Let's add more specific checks and logging:
+    if (!firebaseConfig.apiKey) console.error("NEXT_PUBLIC_FIREBASE_API_KEY is missing.");
+    if (!firebaseConfig.projectId) console.error("NEXT_PUBLIC_FIREBASE_PROJECT_ID is missing.");
+    if (!firebaseConfig.authDomain) console.error("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN is missing.");
+    if (!firebaseConfig.appId) console.error("NEXT_PUBLIC_FIREBASE_APP_ID is missing.");
+
+    // It's crucial to avoid further Firebase SDK calls if the configuration is invalid.
+    // We can set a flag to prevent initialization attempts:
+    sessionStorage.setItem('firebase-initialization-failed', 'true');
+
+
     // Depending on the desired behavior, you might throw an error here
     // or allow the app to continue with potentially broken Firebase functionality.
 }
@@ -35,7 +48,7 @@ let db: Firestore | null = null;
 let analytics: Analytics | null = null;
 
 // Initialize only if config is valid and running in a browser or server environment where initialization makes sense
-if (isConfigValid && typeof window !== 'undefined') { // Check for window object before initializing
+if (isConfigValid && typeof window !== 'undefined' && sessionStorage.getItem('firebase-initialization-failed') !== 'true') { // Check for window object before initializing
     try {
         app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
         auth = getAuth(app);
@@ -64,6 +77,8 @@ if (isConfigValid && typeof window !== 'undefined') { // Check for window object
         auth = null;
         db = null;
         analytics = null;
+         // Set the session storage flag to prevent repeated initialization attempts.
+        sessionStorage.setItem('firebase-initialization-failed', 'true');
     }
 } else if (isConfigValid && typeof window === 'undefined') {
      // Handle server-side initialization if needed (e.g., for Admin SDK or specific server actions)
