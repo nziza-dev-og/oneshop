@@ -1,45 +1,47 @@
+
 // Import the functions you need from the SDKs you need
-import { initializeApp, getApps, getApp, FirebaseOptions, FirebaseApp } from "firebase/app"; // Added FirebaseApp
-import { getAuth, Auth } from "firebase/auth"; // Added Auth type
-import { getFirestore, Firestore } from "firebase/firestore"; // Added Firestore type
-import { getAnalytics, Analytics, isSupported } from "firebase/analytics"; // Added Analytics type
+import { initializeApp, getApps, getApp, FirebaseOptions, FirebaseApp } from "firebase/app";
+import { getAuth, Auth } from "firebase/auth";
+import { getFirestore, Firestore } from "firebase/firestore";
+import { getAnalytics, Analytics, isSupported } from "firebase/analytics";
+
+// --- Environment Variable Loading ---
+const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+const messagingSenderId = process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
+const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID;
+const measurementId = process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID; // Optional
+
+// --- Logging Environment Variables (for debugging) ---
+console.log("--- Firebase Environment Variables ---");
+console.log("NEXT_PUBLIC_FIREBASE_API_KEY:", apiKey ? 'Loaded' : 'MISSING');
+console.log("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:", authDomain ? 'Loaded' : 'MISSING');
+console.log("NEXT_PUBLIC_FIREBASE_PROJECT_ID:", projectId ? 'Loaded' : 'MISSING');
+console.log("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:", storageBucket ? 'Loaded' : 'MISSING');
+console.log("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:", messagingSenderId ? 'Loaded' : 'MISSING');
+console.log("NEXT_PUBLIC_FIREBASE_APP_ID:", appId ? 'Loaded' : 'MISSING');
+console.log("NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID:", measurementId ? 'Loaded' : 'Not Set (Optional)');
+console.log("------------------------------------");
+
 
 // Your web app's Firebase configuration is loaded from environment variables
 const firebaseConfig: FirebaseOptions = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: apiKey,
+  authDomain: authDomain,
+  projectId: projectId,
+  storageBucket: storageBucket,
+  messagingSenderId: messagingSenderId,
+  appId: appId,
   // measurementId is optional, only include if it exists
-  ...(process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID && {
-      measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+  ...(measurementId && {
+      measurementId: measurementId
   })
 };
 
-// Basic check for essential config keys
-const isConfigValid = !!(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.authDomain && firebaseConfig.appId);
-
-if (!isConfigValid) {
-    console.error("Firebase configuration is missing or invalid. Ensure NEXT_PUBLIC_FIREBASE_* environment variables are correctly set in your environment.");
-    console.error("Current Firebase config:", firebaseConfig); // Log the config
-    // Depending on the desired behavior, you might throw an error here
-    // or allow the app to continue with potentially broken Firebase functionality.
-    // Let's add more specific checks and logging:
-    if (!firebaseConfig.apiKey) console.error("NEXT_PUBLIC_FIREBASE_API_KEY is missing.");
-    if (!firebaseConfig.projectId) console.error("NEXT_PUBLIC_FIREBASE_PROJECT_ID is missing.");
-    if (!firebaseConfig.authDomain) console.error("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN is missing.");
-    if (!firebaseConfig.appId) console.error("NEXT_PUBLIC_FIREBASE_APP_ID is missing.");
-
-    // It's crucial to avoid further Firebase SDK calls if the configuration is invalid.
-    // We can set a flag to prevent initialization attempts:
-    sessionStorage.setItem('firebase-initialization-failed', 'true');
-
-
-    // Depending on the desired behavior, you might throw an error here
-    // or allow the app to continue with potentially broken Firebase functionality.
-}
+// Basic check for essential config keys BEFORE attempting initialization
+const isConfigValid = !!(apiKey && projectId && authDomain && appId);
 
 // Initialize Firebase services, handling potential initialization errors
 let app: FirebaseApp | null = null;
@@ -47,58 +49,65 @@ let auth: Auth | null = null;
 let db: Firestore | null = null;
 let analytics: Analytics | null = null;
 
-// Initialize only if config is valid and running in a browser or server environment where initialization makes sense
-if (isConfigValid && typeof window !== 'undefined' && sessionStorage.getItem('firebase-initialization-failed') !== 'true') { // Check for window object before initializing
+// Check validity flag set in sessionStorage from previous failed attempts
+const initializationPreviouslyFailed = typeof window !== 'undefined' && sessionStorage.getItem('firebase-initialization-failed') === 'true';
+
+
+if (!isConfigValid) {
+    console.error("Essential Firebase configuration (apiKey, projectId, authDomain, appId) is missing or invalid. Ensure NEXT_PUBLIC_FIREBASE_* environment variables are correctly set in your environment.");
+    // Set a flag in session storage ONLY if in the browser, to prevent repeated console errors on client-side navigation
+    if (typeof window !== 'undefined') {
+        sessionStorage.setItem('firebase-initialization-failed', 'true');
+    }
+} else if (initializationPreviouslyFailed) {
+    console.warn("Firebase initialization was previously marked as failed. Skipping initialization attempt.");
+}
+else {
+    // Configuration seems valid and no previous failure flag set, attempt initialization
     try {
         app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
         auth = getAuth(app);
         db = getFirestore(app);
 
         // Initialize Analytics only on client-side and if supported and configured
-        if (firebaseConfig.measurementId && app) {
+        if (typeof window !== 'undefined' && measurementId && app) {
             isSupported().then((supported) => {
                 if (supported) {
                     try {
                         analytics = getAnalytics(app);
                         console.log("Firebase Analytics initialized.");
                     } catch (analyticsError) {
-                        console.error("Failed to initialize Firebase Analytics", analyticsError);
+                        console.error("Failed to initialize Firebase Analytics:", analyticsError);
                     }
+                } else {
+                    console.log("Firebase Analytics is not supported in this environment.");
                 }
             }).catch(err => {
                 console.error("Error checking Firebase Analytics support:", err);
             });
         }
+        // Clear the failure flag if initialization succeeds
+        if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('firebase-initialization-failed');
+        }
+         console.log("Firebase initialized successfully.");
+
     } catch (error: any) {
-        console.error("Failed to initialize Firebase services:", error); // Log full error
-        console.error("Firebase configuration:", firebaseConfig); // Log config
+        console.error("CRITICAL: Failed to initialize Firebase services even after config check:", error); // Log full error
+        console.error("Firebase configuration used:", firebaseConfig); // Log config again just in case
         // Reset instances to null on initialization error
         app = null;
         auth = null;
         db = null;
         analytics = null;
-         // Set the session storage flag to prevent repeated initialization attempts.
-        sessionStorage.setItem('firebase-initialization-failed', 'true');
+         // Set the session storage flag to prevent repeated initialization attempts on client.
+        if (typeof window !== 'undefined') {
+            sessionStorage.setItem('firebase-initialization-failed', 'true');
+        }
     }
-} else if (isConfigValid && typeof window === 'undefined') {
-     // Handle server-side initialization if needed (e.g., for Admin SDK or specific server actions)
-     // For client-side SDK, we typically initialize only in the browser.
-     // If you need server-side Firebase access, consider using the Firebase Admin SDK.
-     // For now, we assume client-side initialization is primary.
-     console.log("Firebase client SDK initialized on server?"); // Check if this happens unexpectedly
-      try {
-        app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-        auth = getAuth(app);
-        db = getFirestore(app);
-     } catch (error: any) {
-         console.error("Failed to initialize Firebase services on server:", error); // Log full error
-         console.error("Firebase configuration:", firebaseConfig); // Log config
-         app = null;
-         auth = null;
-         db = null;
-     }
 }
 
 
 // Export potentially null values, components using them MUST check for null
 export { app, auth, db, analytics, isConfigValid };
+
