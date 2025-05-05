@@ -5,20 +5,28 @@ import { getAuth, Auth } from "firebase/auth"; // Added Auth type
 import { getFirestore, Firestore } from "firebase/firestore"; // Added Firestore type
 import { getAnalytics, Analytics, isSupported } from "firebase/analytics"; // Added Analytics type
 
-// Your web app's Firebase configuration
-// Using hardcoded config as provided by the user
+// Your web app's Firebase configuration is loaded from environment variables
 const firebaseConfig: FirebaseOptions = {
-  apiKey: "AIzaSyC81v5TSrC0_wE0jsLW_kFLZs7BMdP5ceQ",
-  authDomain: "auction-origin.firebaseapp.com",
-  projectId: "auction-origin",
-  storageBucket: "auction-origin.firebasestorage.app",
-  messagingSenderId: "881371645224",
-  appId: "1:881371645224:web:8391dc9d4e1b431ca8fc1d",
-  measurementId: "G-R5GXNHTKFX"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  // measurementId is optional, only include if it exists
+  ...(process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID && {
+      measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+  })
 };
 
 // Basic check for essential config keys
 const isConfigValid = firebaseConfig.apiKey && firebaseConfig.projectId;
+
+if (!isConfigValid) {
+    console.error("Essential Firebase configuration (apiKey, projectId) is missing or invalid. Ensure NEXT_PUBLIC_FIREBASE_* environment variables are correctly set in your environment.");
+    // Depending on the desired behavior, you might throw an error here
+    // or allow the app to continue with potentially broken Firebase functionality.
+}
 
 // Initialize Firebase services, handling potential initialization errors
 let app: FirebaseApp | null = null;
@@ -26,14 +34,15 @@ let auth: Auth | null = null;
 let db: Firestore | null = null;
 let analytics: Analytics | null = null;
 
-if (isConfigValid) {
+// Initialize only if config is valid and running in a browser or server environment where initialization makes sense
+if (isConfigValid && typeof window !== 'undefined') { // Check for window object before initializing
     try {
         app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
         auth = getAuth(app);
         db = getFirestore(app);
 
         // Initialize Analytics only on client-side and if supported and configured
-        if (typeof window !== 'undefined' && firebaseConfig.measurementId && app) {
+        if (firebaseConfig.measurementId && app) {
             isSupported().then((supported) => {
                 if (supported) {
                     try {
@@ -55,9 +64,22 @@ if (isConfigValid) {
         db = null;
         analytics = null;
     }
-} else {
-     console.error("Essential Firebase configuration (apiKey, projectId) is missing or invalid in the provided firebaseConfig object.");
-     // Firebase services will remain null
+} else if (isConfigValid && typeof window === 'undefined') {
+     // Handle server-side initialization if needed (e.g., for Admin SDK or specific server actions)
+     // For client-side SDK, we typically initialize only in the browser.
+     // If you need server-side Firebase access, consider using the Firebase Admin SDK.
+     // For now, we assume client-side initialization is primary.
+     console.log("Firebase client SDK initialized on server?"); // Check if this happens unexpectedly
+      try {
+        app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+        auth = getAuth(app);
+        db = getFirestore(app);
+     } catch (error: any) {
+         console.error("Failed to initialize Firebase services on server:", error.message);
+         app = null;
+         auth = null;
+         db = null;
+     }
 }
 
 
