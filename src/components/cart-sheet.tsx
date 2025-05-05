@@ -68,6 +68,11 @@ export function CartSheet() {
         toast({ title: "Cart Empty", description: "Cannot checkout with an empty cart.", variant: "destructive" });
         return;
      }
+     if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || !process.env.STRIPE_SECRET_KEY) {
+        toast({ title: "Configuration Error", description: "Stripe keys are not configured. Checkout unavailable.", variant: "destructive" });
+        console.error("Stripe keys missing in environment variables.");
+        return;
+     }
 
     setIsCheckingOut(true);
     try {
@@ -83,7 +88,12 @@ export function CartSheet() {
       if (!response.ok) {
           const errorData = await response.json();
           console.error("API Checkout Error:", errorData);
-          throw new Error(errorData.error || 'Failed to create checkout session');
+          // Improve error message display to user
+          let userMessage = errorData.error || 'Failed to create checkout session. Please try again.';
+          if (response.status === 500 && userMessage.startsWith("Internal Server Error")) {
+             userMessage = "Checkout service is temporarily unavailable. Please try again later.";
+          }
+          throw new Error(userMessage);
       }
 
       const { sessionId } = await response.json();
@@ -104,52 +114,45 @@ export function CartSheet() {
 
       console.log("[Checkout] Attempting redirectToCheckout with sessionId:", sessionId); // Log before redirect
 
-      // Use window.location.href for direct navigation
-      if (typeof window !== 'undefined') {
-        // Construct the Stripe Checkout URL
-        // This is a placeholder structure, Stripe might use different URL patterns.
-        // It's usually better to rely on stripe.redirectToCheckout, but this is a fallback.
-        // The actual URL might not be directly constructible client-side and might
-        // require interaction with the session object returned from Stripe's API.
-        // The redirectToCheckout method is the intended way.
-        // This manual redirection is a less ideal workaround for potential iframe issues.
+      const { error } = await stripe.redirectToCheckout({ sessionId });
 
-        // The error "Failed to set a named property 'href' on 'Location'" suggests
-        // the environment (like an iframe in some preview tools) restricts direct navigation.
-        // Trying window.open as another fallback.
+       if (error) {
+            // This point might not be reached if redirection is blocked by browser/environment
+            console.error('[Checkout] Stripe redirectToCheckout error:', error);
 
-         try {
-             const { error } = await stripe.redirectToCheckout({ sessionId });
-             if (error) {
-                 // Log the error and try window.open if redirection fails
-                console.error('[Checkout] Stripe redirectToCheckout error:', error);
-                // Construct a plausible URL - THIS MIGHT NOT BE CORRECT for all Stripe versions
-                const stripeCheckoutUrl = `https://checkout.stripe.com/pay/${sessionId}`;
+            // Attempting window.open as a fallback (might be blocked by pop-up blockers)
+            try {
+                const stripeCheckoutUrl = `https://checkout.stripe.com/pay/${sessionId}`; // Construct likely URL (may change)
                 console.warn(`[Checkout] Redirect failed, attempting to open in new tab: ${stripeCheckoutUrl}`);
-                window.open(stripeCheckoutUrl, '_blank');
+                const newWindow = window.open(stripeCheckoutUrl, '_blank');
+                 if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+                    // Inform user if popup was blocked
+                    toast({
+                        title: "Popup Blocked?",
+                        description: "Could not open checkout in a new tab. Please disable your popup blocker and try again.",
+                        variant: "destructive",
+                        duration: 10000,
+                    });
+                } else {
+                    toast({
+                        title: "Redirect Issue",
+                        description: "Could not automatically redirect. Checkout opening in a new tab.",
+                        variant: "default",
+                        duration: 10000,
+                    });
+                }
+            } catch(openError) {
+                console.error("Error opening new window:", openError);
                  toast({
-                     title: "Redirect Issue",
-                     description: "Could not automatically redirect to checkout. Opening in a new tab.",
-                     variant: "default",
-                     duration: 10000,
+                     title: "Checkout Failed",
+                     description: "Could not redirect or open checkout. Please try again or contact support.",
+                     variant: "destructive",
                  });
-             } else {
-                 console.log("[Checkout] Redirecting via redirectToCheckout...");
-             }
-         } catch (catchError: any) {
-            console.error("[Checkout] Error during redirectToCheckout or fallback:", catchError);
-             toast({
-                 title: "Checkout Failed",
-                 description: catchError.message || "Could not initiate checkout.",
-                 variant: "destructive",
-             });
-         }
-
-      } else {
-          console.error("[Checkout] Cannot redirect: 'window' is not defined (running on server?).");
-           throw new Error("Checkout can only be initiated from the client-side.");
-      }
-
+            }
+       } else {
+            console.log("[Checkout] Redirecting via redirectToCheckout...");
+            // If successful, browser navigates away, this part might not be logged.
+       }
 
     } catch (error: any) {
       console.error("[Checkout] Overall Checkout Error:", error); // Log any caught error
@@ -292,8 +295,10 @@ export function CartSheet() {
                 {isCheckingOut ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ShoppingCart className="mr-2 h-5 w-5"/>}
                 {isCheckingOut ? 'Processing...' : 'Proceed to Checkout'}
               </Button>
-               {/* Removed whitespace before SheetClose */}
-               <SheetClose asChild><Button variant="outline" className="w-full border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" disabled={isCheckingOut}>Continue Shopping</Button></SheetClose>
+               {/* Fix: Ensure SheetClose with asChild wraps a single element */}
+               <SheetClose asChild>
+                <Button variant="outline" className="w-full border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" disabled={isCheckingOut}>Continue Shopping</Button>
+               </SheetClose>
             </SheetFooter>
           </>
         )}
