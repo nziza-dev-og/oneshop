@@ -1,4 +1,3 @@
-
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp, FirebaseOptions, FirebaseApp } from "firebase/app"; // Added FirebaseApp
 import { getAuth, Auth } from "firebase/auth"; // Added Auth type
@@ -88,5 +87,4 @@ if (isConfigValid && typeof window !== 'undefined') { // Check for window object
 
 // Export potentially null values, components using them MUST check for null
 export { app, auth, db, analytics, isConfigValid };
-
     
