@@ -20,10 +20,11 @@ const firebaseConfig: FirebaseOptions = {
 };
 
 // Basic check for essential config keys
-const isConfigValid = firebaseConfig.apiKey && firebaseConfig.projectId;
+const isConfigValid = !!(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.authDomain && firebaseConfig.appId);
 
 if (!isConfigValid) {
-    console.error("Essential Firebase configuration (apiKey, projectId) is missing or invalid. Ensure NEXT_PUBLIC_FIREBASE_* environment variables are correctly set in your environment.");
+    console.error("Essential Firebase configuration (apiKey, projectId, authDomain, appId) is missing or invalid. Ensure NEXT_PUBLIC_FIREBASE_* environment variables are correctly set in your environment.");
+    console.error("Current Firebase config:", firebaseConfig); // Log the config
     // Depending on the desired behavior, you might throw an error here
     // or allow the app to continue with potentially broken Firebase functionality.
 }
@@ -57,7 +58,8 @@ if (isConfigValid && typeof window !== 'undefined') { // Check for window object
             });
         }
     } catch (error: any) {
-        console.error("Failed to initialize Firebase services:", error.message);
+        console.error("Failed to initialize Firebase services:", error); // Log full error
+        console.error("Firebase configuration:", firebaseConfig); // Log config
         // Reset instances to null on initialization error
         app = null;
         auth = null;
@@ -75,7 +77,8 @@ if (isConfigValid && typeof window !== 'undefined') { // Check for window object
         auth = getAuth(app);
         db = getFirestore(app);
      } catch (error: any) {
-         console.error("Failed to initialize Firebase services on server:", error.message);
+         console.error("Failed to initialize Firebase services on server:", error); // Log full error
+         console.error("Firebase configuration:", firebaseConfig); // Log config
          app = null;
          auth = null;
          db = null;
@@ -85,3 +88,5 @@ if (isConfigValid && typeof window !== 'undefined') { // Check for window object
 
 // Export potentially null values, components using them MUST check for null
 export { app, auth, db, analytics, isConfigValid };
+
+    
