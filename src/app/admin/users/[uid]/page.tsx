@@ -257,7 +257,7 @@ export default function AdminUserProfilePage() {
                      <TableCell className="text-right">
                         {/* Link to the specific order details page in admin */}
                         <Button variant="outline" size="sm" asChild>
-                            <Link href={`/admin/orders/${order.id}`}>View</Link> {/* Assuming /admin/orders/[orderId] page */}
+                            <Link href={`/admin/orders/${order.id}`}>View</Link>{/* Assuming /admin/orders/[orderId] page */}
                         </Button>
                     </TableCell>
                   </TableRow>

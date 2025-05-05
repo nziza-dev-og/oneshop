@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import { db } from '@/lib/firebase/firebase';
 import { doc, getDoc, Timestamp, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import type { Order, UserProfile, Notification } from '@/types';
+import type { Order, UserProfile, Notification, CartItem } from '@/types'; // Added CartItem
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -66,7 +66,12 @@ export default function AdminOrderDetailPage() {
                 else if (orderData.orderDate?.seconds) orderDate = new Timestamp(orderData.orderDate.seconds, orderData.orderDate.nanoseconds).toDate();
                 else orderDate = new Date(); // Fallback
 
-                const fetchedOrder = { id: orderDocSnap.id, ...orderData, orderDate } as Order;
+                const fetchedOrder = {
+                     id: orderDocSnap.id,
+                      ...orderData,
+                       orderDate,
+                        items: orderData.items || [] // Ensure items array exists
+                     } as Order;
                 setOrder(fetchedOrder);
 
                 // Fetch Customer Details

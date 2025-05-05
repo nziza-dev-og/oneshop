@@ -78,6 +78,41 @@ export default function AdminOrdersPage() {
       let q;
       let fetchedUserName: string | null = null;
 
+      const processOrders = (querySnapshot: any) => { // Helper function
+        const fetchedOrders = querySnapshot.docs.map((orderDoc: any) => {
+          const data = orderDoc.data();
+          const userEmail = filterUserId ? fetchedUserName : (userEmails[data.userId] || 'Loading...'); // Use cache or default
+
+           // Ensure orderDate is converted correctly from Firestore Timestamp or Date
+           let orderDate: Date;
+           if (data.orderDate instanceof Timestamp) {
+             orderDate = data.orderDate.toDate();
+           } else if (data.orderDate && typeof data.orderDate.seconds === 'number') {
+             orderDate = new Timestamp(data.orderDate.seconds, data.orderDate.nanoseconds).toDate();
+           } else if (data.orderDate instanceof Date) {
+               orderDate = data.orderDate;
+           } else {
+             console.warn(`Invalid date format for order ${orderDoc.id}:`, data.orderDate);
+             orderDate = new Date(); // Fallback
+           }
+
+          return {
+            id: orderDoc.id,
+            userId: data.userId,
+            userEmail: userEmail, // Add userEmail
+            items: data.items,
+            totalPrice: data.totalPrice,
+            orderDate: orderDate, // Use converted Date object
+            status: data.status || 'Processing', // Default status
+            stripeCheckoutSessionId: data.stripeCheckoutSessionId,
+            paymentStatus: data.paymentStatus,
+            customerEmail: data.customerEmail,
+          } as Order;
+        });
+        setOrders(fetchedOrders);
+        setLoading(false); // Set loading to false after data processing
+      }
+
       if (filterUserId) {
         // Query orders for a specific user
         q = query(ordersRef, where('userId', '==', filterUserId), orderBy('orderDate', 'desc'));
@@ -94,38 +129,7 @@ export default function AdminOrdersPage() {
       }
 
       const unsubscribe = onSnapshot(q, (querySnapshot) => { // Use onSnapshot for real-time updates
-          const fetchedOrders = querySnapshot.docs.map((orderDoc) => {
-            const data = orderDoc.data();
-            const userEmail = filterUserId ? fetchedUserName : (userEmails[data.userId] || 'Loading...'); // Use cache or default
-
-             // Ensure orderDate is converted correctly from Firestore Timestamp or Date
-             let orderDate: Date;
-             if (data.orderDate instanceof Timestamp) {
-               orderDate = data.orderDate.toDate();
-             } else if (data.orderDate && typeof data.orderDate.seconds === 'number') {
-               orderDate = new Timestamp(data.orderDate.seconds, data.orderDate.nanoseconds).toDate();
-             } else if (data.orderDate instanceof Date) {
-                 orderDate = data.orderDate;
-             } else {
-               console.warn(`Invalid date format for order ${orderDoc.id}:`, data.orderDate);
-               orderDate = new Date(); // Fallback
-             }
-
-            return {
-              id: orderDoc.id,
-              userId: data.userId,
-              userEmail: userEmail, // Add userEmail
-              items: data.items,
-              totalPrice: data.totalPrice,
-              orderDate: orderDate, // Use converted Date object
-              status: data.status || 'Processing', // Default status
-              stripeCheckoutSessionId: data.stripeCheckoutSessionId,
-              paymentStatus: data.paymentStatus,
-              customerEmail: data.customerEmail,
-            } as Order;
-          });
-          setOrders(fetchedOrders);
-          setLoading(false); // Set loading to false after first data fetch
+          processOrders(querySnapshot);
         }, (error) => { // Error handling for onSnapshot
              console.error("Error fetching orders:", error);
              toast({ title: "Error", description: "Could not fetch orders.", variant: "destructive" });
@@ -142,7 +146,8 @@ export default function AdminOrdersPage() {
         setLoading(false);
         toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
     }
-  }, [user, authLoading, isAdmin, db, router, toast, filterUserId, filteredUserName, userEmails]); // Add db to dependency array
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, authLoading, isAdmin, db, router, toast, filterUserId, userEmails]); // Removed filteredUserName dependency
 
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
@@ -223,7 +228,7 @@ export default function AdminOrdersPage() {
                    <TableHead><Skeleton className="h-5 w-24" /></TableHead>
                    <TableHead><Skeleton className="h-5 w-16 text-right" /></TableHead>
                    <TableHead><Skeleton className="h-5 w-24 text-center" /></TableHead>
-                    <TableHead><Skeleton className="h-5 w-10 text-right" /></TableHead> {/* Actions column */}
+                    <TableHead><Skeleton className="h-5 w-10 text-right" /></TableHead>{/* Actions column */}
                  </TableRow>
                </TableHeader>
                <TableBody>
@@ -234,7 +239,7 @@ export default function AdminOrdersPage() {
                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                      <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
                      <TableCell className="text-center"><Skeleton className="h-5 w-24 mx-auto" /></TableCell>
-                     <TableCell className="text-right"><Skeleton className="h-8 w-8" /></TableCell> {/* Actions cell */}
+                     <TableCell className="text-right"><Skeleton className="h-8 w-8" /></TableCell>{/* Actions cell */}
                    </TableRow>
                  ))}
                </TableBody>
@@ -270,7 +275,7 @@ export default function AdminOrdersPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[150px]">Order ID</TableHead>
-                    {!filterUserId && <TableHead className="min-w-[150px]">User</TableHead>} {/* Hide User column if filtering */}
+                    {!filterUserId && <TableHead className="min-w-[150px]">User</TableHead>}{/* Hide User column if filtering */}
                     <TableHead className="w-[150px]">Date</TableHead>
                     <TableHead className="w-[100px] text-right">Total</TableHead>
                     <TableHead className="w-[120px] text-center">Status</TableHead>
@@ -283,7 +288,7 @@ export default function AdminOrdersPage() {
                       <TableCell className="font-medium">{order.id.substring(0,8)}...</TableCell>
                        {!filterUserId && (
                            <TableCell>
-                             <div className="font-medium">{order.customerEmail || userEmails[order.userId] || 'N/A'}</div> {/* Display fetched/cached email */}
+                             <div className="font-medium">{order.customerEmail || userEmails[order.userId] || 'N/A'}</div>{/* Display fetched/cached email */}
                              <div className="text-xs text-muted-foreground">{order.userId.substring(0,10)}...</div>
                            </TableCell>
                        )}

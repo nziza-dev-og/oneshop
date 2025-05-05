@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
-import { PlusCircle, Edit, Trash2, Loader2 } from 'lucide-react'; // Import icons
+import { PlusCircle, Edit, Trash2, Loader2, Eye } from 'lucide-react'; // Import icons, Added Eye
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -171,6 +171,11 @@ export default function AdminProductsPage() {
                     <TableCell className="font-medium">{product.name}</TableCell>
                     <TableCell className="text-right">${product.price.toFixed(2)}</TableCell>
                     <TableCell className="text-right space-x-1">
+                         <Link href={`/products/${product.id}`} passHref legacyBehavior>
+                            <Button variant="ghost" size="icon" aria-label="View Details" className="h-8 w-8 text-muted-foreground hover:text-primary">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                         </Link>
                         {/* <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
                            <Edit className="h-4 w-4" />
                         </Button> */}
