@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
-import { collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, Timestamp, onSnapshot } from 'firebase/firestore'; // Import onSnapshot
 import { db } from '@/lib/firebase/firebase'; // db might be null
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -23,78 +23,69 @@ export default function DashboardOrdersPage() {
   const { toast } = useToast(); // Initialize toast
 
   useEffect(() => {
-    // Authentication and loading are partially handled by the layout,
-    // but we still need to wait for the user object here.
     if (authLoading) {
-        // Wait for auth state to be determined
-        setLoading(true);
-        return;
+      setLoading(true);
+      return;
     }
 
     if (!user) {
-      // If not logged in after auth check, redirect (though layout might handle this too)
-      // router.push('/login?redirect=/dashboard/orders'); // Let layout handle redirection
       setLoading(false);
+      // Let layout handle redirection
       return;
     }
 
     if (!db) {
-      // Database not available
       toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
       setLoading(false);
       return;
     }
 
-    // Fetch orders for the current user
-    const fetchOrders = async () => {
-      setLoading(true);
-      try {
-        const ordersRef = collection(db, 'orders');
-        // Query orders for the current user, ordered by date descending
-        const q = query(ordersRef, where('userId', '==', user.uid), orderBy('orderDate', 'desc'));
-        const querySnapshot = await getDocs(q);
-        const fetchedOrders = querySnapshot.docs.map(doc => {
-          const data = doc.data();
-           // Ensure orderDate is converted correctly from Firestore Timestamp or Date
-           let orderDate: Date;
-           if (data.orderDate instanceof Timestamp) {
-             orderDate = data.orderDate.toDate();
-           } else if (data.orderDate && typeof data.orderDate.seconds === 'number') {
-             // Handle cases where it might be a plain object with seconds/nanoseconds
-             orderDate = new Timestamp(data.orderDate.seconds, data.orderDate.nanoseconds).toDate();
-           } else if (data.orderDate instanceof Date){
-              orderDate = data.orderDate; // Already a Date object
-           }
-           else {
-             console.warn(`Invalid or missing date format for order ${doc.id}:`, data.orderDate);
-             orderDate = new Date(); // Fallback to current date
-           }
+    setLoading(true);
+    const ordersRef = collection(db, 'orders');
+    // Query orders for the current user, ordered by date descending
+    const q = query(ordersRef, where('userId', '==', user.uid), orderBy('orderDate', 'desc'));
 
-          return {
-            id: doc.id,
-            userId: data.userId,
-            items: data.items,
-            totalPrice: data.totalPrice,
-            orderDate: orderDate, // Ensure this is a Date object
-            status: data.status || 'Processing', // Default to 'Processing' if status is missing
-            // Ensure all required fields from the Order type are included
-            stripeCheckoutSessionId: data.stripeCheckoutSessionId,
-            paymentStatus: data.paymentStatus,
-            customerEmail: data.customerEmail,
-          } as Order;
-        });
-        setOrders(fetchedOrders);
-      } catch (error) {
-        console.error("Error fetching orders:", error);
-        toast({ title: "Error", description: "Could not fetch your orders.", variant: "destructive" });
-      } finally {
-        setLoading(false);
-      }
-    };
+    // Use onSnapshot for real-time updates
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const fetchedOrders = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        let orderDate: Date;
+        if (data.orderDate instanceof Timestamp) {
+          orderDate = data.orderDate.toDate();
+        } else if (data.orderDate && typeof data.orderDate.seconds === 'number') {
+          orderDate = new Timestamp(data.orderDate.seconds, data.orderDate.nanoseconds).toDate();
+        } else if (data.orderDate instanceof Date){
+           orderDate = data.orderDate;
+        }
+        else {
+          console.warn(`Invalid or missing date format for order ${doc.id}:`, data.orderDate);
+          orderDate = new Date(); // Fallback
+        }
 
-    fetchOrders();
+        return {
+          id: doc.id,
+          userId: data.userId,
+          items: data.items,
+          totalPrice: data.totalPrice,
+          orderDate: orderDate,
+          status: data.status || 'Processing',
+          stripeCheckoutSessionId: data.stripeCheckoutSessionId,
+          paymentStatus: data.paymentStatus,
+          customerEmail: data.customerEmail,
+        } as Order;
+      });
+      setOrders(fetchedOrders);
+      setLoading(false);
+    }, (error) => { // Error handling for onSnapshot
+      console.error("Error fetching orders:", error);
+      toast({ title: "Error", description: "Could not fetch your orders.", variant: "destructive" });
+      setLoading(false);
+    });
 
-  }, [user, authLoading, router, toast]); // Added toast to dependencies
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+
+  }, [user, authLoading, toast]); // Depend on user, authLoading, and toast
 
    // Loading state skeleton
    if (loading) {
@@ -233,4 +224,3 @@ export default function DashboardOrdersPage() {
     </div>
   );
 }
-
