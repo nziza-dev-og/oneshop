@@ -5,43 +5,38 @@ import { getAuth, Auth } from "firebase/auth";
 import { getFirestore, Firestore } from "firebase/firestore";
 import { getAnalytics, Analytics, isSupported } from "firebase/analytics";
 
-// --- Environment Variable Loading ---
-const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
-const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-const messagingSenderId = process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
-const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID;
-const measurementId = process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID; // Optional
-
-// --- Logging Environment Variables (for debugging) ---
-console.log("--- Firebase Environment Variables ---");
-console.log("NEXT_PUBLIC_FIREBASE_API_KEY:", apiKey ? 'Loaded' : 'MISSING');
-console.log("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:", authDomain ? 'Loaded' : 'MISSING');
-console.log("NEXT_PUBLIC_FIREBASE_PROJECT_ID:", projectId ? 'Loaded' : 'MISSING');
-console.log("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:", storageBucket ? 'Loaded' : 'MISSING');
-console.log("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:", messagingSenderId ? 'Loaded' : 'MISSING');
-console.log("NEXT_PUBLIC_FIREBASE_APP_ID:", appId ? 'Loaded' : 'MISSING');
-console.log("NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID:", measurementId ? 'Loaded' : 'Not Set (Optional)');
-console.log("------------------------------------");
-
-
-// Your web app's Firebase configuration is loaded from environment variables
+// Your web app's Firebase configuration
 const firebaseConfig: FirebaseOptions = {
-  apiKey: apiKey,
-  authDomain: authDomain,
-  projectId: projectId,
-  storageBucket: storageBucket,
-  messagingSenderId: messagingSenderId,
-  appId: appId,
-  // measurementId is optional, only include if it exists
-  ...(measurementId && {
-      measurementId: measurementId
-  })
+  apiKey: "AIzaSyC81v5TSrC0_wE0jsLW_kFLZs7BMdP5ceQ",
+  authDomain: "auction-origin.firebaseapp.com",
+  projectId: "auction-origin",
+  storageBucket: "auction-origin.appspot.com", // Corrected: Removed 'firebasestorage'
+  messagingSenderId: "881371645224",
+  appId: "1:881371645224:web:8391dc9d4e1b431ca8fc1d",
+  measurementId: "G-R5GXNHTKFX" // Optional
 };
 
+// --- Logging Environment Variables (for debugging - now using hardcoded values) ---
+console.log("--- Firebase Configuration ---");
+console.log("apiKey:", firebaseConfig.apiKey ? 'Present' : 'MISSING');
+console.log("authDomain:", firebaseConfig.authDomain ? 'Present' : 'MISSING');
+console.log("projectId:", firebaseConfig.projectId ? 'Present' : 'MISSING');
+console.log("storageBucket:", firebaseConfig.storageBucket ? 'Present' : 'MISSING');
+console.log("messagingSenderId:", firebaseConfig.messagingSenderId ? 'Present' : 'MISSING');
+console.log("appId:", firebaseConfig.appId ? 'Present' : 'MISSING');
+console.log("measurementId:", firebaseConfig.measurementId ? 'Present' : 'Not Set (Optional)');
+console.log("----------------------------");
+
+
 // Basic check for essential config keys BEFORE attempting initialization
-const isConfigValid = !!(apiKey && projectId && authDomain && appId);
+// Adjusted check for hardcoded config
+const isConfigValid = !!(
+    firebaseConfig.apiKey &&
+    firebaseConfig.projectId &&
+    firebaseConfig.authDomain &&
+    firebaseConfig.appId &&
+    firebaseConfig.storageBucket // Added storageBucket check
+);
 
 // Initialize Firebase services, handling potential initialization errors
 let app: FirebaseApp | null = null;
@@ -54,7 +49,7 @@ const initializationPreviouslyFailed = typeof window !== 'undefined' && sessionS
 
 
 if (!isConfigValid) {
-    console.error("Essential Firebase configuration (apiKey, projectId, authDomain, appId) is missing or invalid. Ensure NEXT_PUBLIC_FIREBASE_* environment variables are correctly set in your environment.");
+    console.error("Essential Firebase configuration (apiKey, projectId, authDomain, appId, storageBucket) is missing or invalid.");
     // Set a flag in session storage ONLY if in the browser, to prevent repeated console errors on client-side navigation
     if (typeof window !== 'undefined') {
         sessionStorage.setItem('firebase-initialization-failed', 'true');
@@ -70,7 +65,7 @@ else {
         db = getFirestore(app);
 
         // Initialize Analytics only on client-side and if supported and configured
-        if (typeof window !== 'undefined' && measurementId && app) {
+        if (typeof window !== 'undefined' && firebaseConfig.measurementId && app) {
             isSupported().then((supported) => {
                 if (supported) {
                     try {
@@ -93,7 +88,7 @@ else {
          console.log("Firebase initialized successfully.");
 
     } catch (error: any) {
-        console.error("CRITICAL: Failed to initialize Firebase services even after config check:", error); // Log full error
+        console.error("CRITICAL: Failed to initialize Firebase services:", error); // Log full error
         console.error("Firebase configuration used:", firebaseConfig); // Log config again just in case
         // Reset instances to null on initialization error
         app = null;
@@ -110,4 +105,3 @@ else {
 
 // Export potentially null values, components using them MUST check for null
 export { app, auth, db, analytics, isConfigValid };
-
