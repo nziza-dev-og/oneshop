@@ -178,15 +178,12 @@ export function NotificationDropdown() {
 
     if (notification.link) {
         return (
-            <Link href={notification.link} passHref legacyBehavior key={notification.id}>
-                <DropdownMenuItem
-                  className={itemClasses}
-                  onSelect={(e) => e.preventDefault()} // Prevent auto-closing for Link
-                  onClick={handleItemClick} // Handle read status and navigation
-                  >
-                   {content}
-                </DropdownMenuItem>
-            </Link>
+             <DropdownMenuItem asChild key={notification.id} className={itemClasses} onSelect={(e) => e.preventDefault()}>
+                 {/* Use asChild and put Link inside */}
+                 <Link href={notification.link} onClick={handleItemClick} className="w-full">
+                     {content}
+                 </Link>
+            </DropdownMenuItem>
         );
     }
 
