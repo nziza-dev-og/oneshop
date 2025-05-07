@@ -9,8 +9,9 @@ import { getAnalytics, Analytics, isSupported } from "firebase/analytics";
 const firebaseConfig: FirebaseOptions = {
   apiKey: "AIzaSyC81v5TSrC0_wE0jsLW_kFLZs7BMdP5ceQ",
   authDomain: "auction-origin.firebaseapp.com",
+  databaseURL: "https://auction-origin-default-rtdb.firebaseio.com",
   projectId: "auction-origin",
-  storageBucket: "auction-origin.appspot.com", // Corrected: Removed 'firebasestorage'
+  storageBucket: "auction-origin.firebasestorage.app", // Corrected in previous step
   messagingSenderId: "881371645224",
   appId: "1:881371645224:web:8391dc9d4e1b431ca8fc1d",
   measurementId: "G-R5GXNHTKFX" // Optional
@@ -20,6 +21,7 @@ const firebaseConfig: FirebaseOptions = {
 console.log("--- Firebase Configuration ---");
 console.log("apiKey:", firebaseConfig.apiKey ? 'Present' : 'MISSING');
 console.log("authDomain:", firebaseConfig.authDomain ? 'Present' : 'MISSING');
+console.log("databaseURL:", firebaseConfig.databaseURL ? 'Present' : 'MISSING');
 console.log("projectId:", firebaseConfig.projectId ? 'Present' : 'MISSING');
 console.log("storageBucket:", firebaseConfig.storageBucket ? 'Present' : 'MISSING');
 console.log("messagingSenderId:", firebaseConfig.messagingSenderId ? 'Present' : 'MISSING');
@@ -55,7 +57,8 @@ if (!isConfigValid) {
         sessionStorage.setItem('firebase-initialization-failed', 'true');
     }
 } else if (initializationPreviouslyFailed) {
-    console.warn("Firebase initialization was previously marked as failed. Skipping initialization attempt.");
+    // console.warn("Firebase initialization was previously marked as failed. Skipping initialization attempt.");
+    // No console warning in production/deployed environments to avoid clutter, error is handled by UI/toast
 }
 else {
     // Configuration seems valid and no previous failure flag set, attempt initialization
@@ -70,12 +73,12 @@ else {
                 if (supported) {
                     try {
                         analytics = getAnalytics(app);
-                        console.log("Firebase Analytics initialized.");
+                        // console.log("Firebase Analytics initialized.");
                     } catch (analyticsError) {
                         console.error("Failed to initialize Firebase Analytics:", analyticsError);
                     }
                 } else {
-                    console.log("Firebase Analytics is not supported in this environment.");
+                    // console.log("Firebase Analytics is not supported in this environment.");
                 }
             }).catch(err => {
                 console.error("Error checking Firebase Analytics support:", err);
@@ -85,11 +88,11 @@ else {
         if (typeof window !== 'undefined') {
             sessionStorage.removeItem('firebase-initialization-failed');
         }
-         console.log("Firebase initialized successfully.");
+         // console.log("Firebase initialized successfully.");
 
     } catch (error: any) {
         console.error("CRITICAL: Failed to initialize Firebase services:", error); // Log full error
-        console.error("Firebase configuration used:", firebaseConfig); // Log config again just in case
+        // console.error("Firebase configuration used:", firebaseConfig); // Log config again just in case
         // Reset instances to null on initialization error
         app = null;
         auth = null;
@@ -105,3 +108,4 @@ else {
 
 // Export potentially null values, components using them MUST check for null
 export { app, auth, db, analytics, isConfigValid };
+
