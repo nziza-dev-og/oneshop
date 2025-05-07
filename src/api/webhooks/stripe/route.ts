@@ -27,6 +27,7 @@ if (!webhookSecret) {
 export async function POST(req: NextRequest) {
   // Check if Stripe and webhook secret are configured
   if (!stripe || !webhookSecret) {
+    console.error("Webhook Error: Stripe service or webhook secret is not configured. Ensure STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are set in environment variables.");
     return NextResponse.json({ error: 'Stripe service or webhook secret is not configured.' }, { status: 500 });
   }
 
