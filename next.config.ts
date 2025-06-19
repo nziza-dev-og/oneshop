@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -31,6 +32,12 @@ const nextConfig: NextConfig = {
       { // Add pattern for img.freepik.com
         protocol: 'https',
         hostname: 'img.freepik.com',
+        port: '',
+        pathname: '/**',
+      },
+      { // Add pattern for placehold.co
+        protocol: 'https',
+        hostname: 'placehold.co',
         port: '',
         pathname: '/**',
       },
