@@ -69,7 +69,7 @@ export default function HomePage() {
         variants={fadeIn}
       >
          <div
-            className="absolute inset-0 bg-cover bg-center opacity-10 mix-blend-screen" // Lighter blend mode
+            className="absolute inset-0 bg-cover bg-center opacity-5 mix-blend-screen" // Lighter blend mode
             style={{ backgroundImage: "url('https://picsum.photos/1920/1080?grayscale&blur=1&random=1')" }} // Grayscale background image
             data-ai-hint="abstract subtle texture"
           />
