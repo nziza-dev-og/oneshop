@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -8,14 +9,22 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { collection, query, where, getDocs, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase'; // db might be null
-import type { Order } from '@/types'; // Assuming Order type exists
+import type { Order as GlobalOrder } from '@/types'; // Assuming Order type exists
 import { useCart } from '@/hooks/useCart'; // Import useCart for wishlist count
 import { Heart, Package } from 'lucide-react'; // Import icons
+
+// Define a local type for the orders to be stored in state, allowing Date | null for orderDate
+interface DashboardOrder extends Omit<GlobalOrder, 'orderDate' | 'items'> {
+  orderDate: Date | null;
+  // items can be kept minimal for overview, or use a specific type if needed
+  items: Pick<GlobalOrder['items'][0], 'id' | 'name' | 'price' | 'quantity' | 'imageUrl' | 'imageHint'>[];
+}
+
 
 export default function DashboardOverviewPage() {
   const { user, loading: authLoading } = useAuth();
   const { wishlist } = useCart(); // Get wishlist from cart hook
-  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+  const [recentOrders, setRecentOrders] = useState<DashboardOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [isClient, setIsClient] = useState(false); // Track client-side rendering
 
@@ -36,26 +45,27 @@ export default function DashboardOverviewPage() {
            const querySnapshot = await getDocs(q);
            const fetchedOrders = querySnapshot.docs.map(doc => {
               const data = doc.data();
-               let orderDate: Date;
+               let orderDate: Date | null = null; // Initialize as null
                if (data.orderDate instanceof Timestamp) {
                  orderDate = data.orderDate.toDate();
                } else if (data.orderDate && typeof data.orderDate.seconds === 'number') {
-                 orderDate = new Timestamp(data.orderDate.seconds, data.orderDate.nanoseconds).toDate();
+                 orderDate = new Timestamp(data.orderDate.seconds, data.orderDate.nanoseconds || 0).toDate();
                } else if (data.orderDate instanceof Date){
                    orderDate = data.orderDate;
-               }
-                else {
+               } else if (data.orderDate) { // If it exists but is not a recognized type
                  console.warn(`Invalid date format for order ${doc.id}:`, data.orderDate);
-                 orderDate = new Date(); // Fallback
+                 // orderDate remains null
                }
+               // else: data.orderDate is undefined/null, so orderDate remains null
+
              return {
                id: doc.id,
                userId: data.userId,
-               items: data.items,
-               totalPrice: data.totalPrice,
-               orderDate: orderDate,
-               status: data.status || 'Processing',
-             } as Order;
+               items: data.items || [], // Ensure items array exists
+               totalPrice: data.totalPrice || 0, // Ensure totalPrice exists
+               orderDate: orderDate, // This is now Date | null
+               status: data.status || 'Processing', // Default status
+             } as DashboardOrder; // Cast to local type
            });
            setRecentOrders(fetchedOrders);
          } catch (error) {
@@ -122,7 +132,9 @@ export default function DashboardOverviewPage() {
                     <div key={order.id} className="flex justify-between items-start text-sm">
                        <div>
                          <p className="font-medium">Order #{order.id.substring(0,6)}...</p>
-                         <p className="text-xs text-muted-foreground">{order.orderDate.toLocaleDateString()}</p>
+                         <p className="text-xs text-muted-foreground">
+                           {order.orderDate ? order.orderDate.toLocaleDateString() : 'Date unavailable'}
+                         </p>
                        </div>
                         <p className="font-semibold">${order.totalPrice.toFixed(2)}</p>
                     </div>
@@ -185,3 +197,4 @@ export default function DashboardOverviewPage() {
     </div>
   );
 }
+
