@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -68,9 +69,11 @@ export function CartSheet() {
         toast({ title: "Cart Empty", description: "Cannot checkout with an empty cart.", variant: "destructive" });
         return;
      }
-     if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || !process.env.STRIPE_SECRET_KEY) {
-        toast({ title: "Configuration Error", description: "Stripe keys are not configured. Checkout unavailable.", variant: "destructive" });
-        console.error("Stripe keys missing in environment variables.");
+     // Client-side only needs to check for the publishable key.
+     // The secret key is handled by the server-side API route.
+     if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
+        toast({ title: "Configuration Error", description: "Stripe is not configured. Checkout unavailable.", variant: "destructive" });
+        console.error("Stripe publishable key (NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) missing in environment variables.");
         return;
      }
 
@@ -306,3 +309,4 @@ export function CartSheet() {
     </Sheet>
   );
 }
+
