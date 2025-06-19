@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ShoppingBag, BarChart3, Users, Settings, LayoutDashboard, ShieldCheck, Bell, Package, PackagePlus, MessageSquare } from "lucide-react"; // Added MessageSquare
+import { ShoppingBag, BarChart3, Users, Settings, LayoutDashboard, ShieldCheck, Bell, Package, PackagePlus, MessageSquare } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -20,16 +20,16 @@ import {
 import { useAuth } from "@/providers/auth-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Updated menu items for admin
+// Updated menu items for admin - rearranged for better flow
 const adminMenuItems = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/orders", label: "Manage Orders", icon: ShoppingBag },
+  { href: "/admin/products", label: "Manage Products", icon: Package },
+  { href: "/admin/products/add", label: "Add Product", icon: PackagePlus },
   { href: "/admin/users", label: "Manage Users", icon: Users },
-  { href: "/admin/products", label: "Manage Products", icon: Package }, // Link to product list
-  { href: "/admin/products/add", label: "Add Product", icon: PackagePlus }, // Link to add product page
-  { href: "/admin/statistics", label: "Statistics", icon: BarChart3 },
+  { href: "/admin/messages", label: "Contact Messages", icon: MessageSquare },
   { href: "/admin/notifications", label: "Notifications", icon: Bell },
-  { href: "/admin/messages", label: "Contact Messages", icon: MessageSquare }, // Added Contact Messages link
+  { href: "/admin/statistics", label: "Statistics", icon: BarChart3 },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
@@ -60,7 +60,7 @@ export default function AdminDashboardLayout({
          <div className="w-64 border-r p-4 hidden md:block">
            <Skeleton className="h-8 w-3/4 mb-6" />
            <div className="space-y-2">
-             {[...Array(adminMenuItems.length)].map((_, i) => ( // Use dynamic length
+             {[...Array(adminMenuItems.length)].map((_, i) => (
                <Skeleton key={i} className="h-10 w-full" />
              ))}
            </div>
