@@ -7,15 +7,10 @@ import {
   collection,
   addDoc,
   serverTimestamp,
-  query,
-  where,
-  getDocs,
-  writeBatch,
   doc,
-  getDoc,
   updateDoc,
 } from 'firebase/firestore';
-import type { CartItem, Notification, Order } from '@/types';
+import type { Notification } from '@/types';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -50,106 +45,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
-  // Handle the 'checkout.session.completed' event
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
-    console.log('Processing checkout.session.completed for session:', session.id);
+    // Order creation is now handled on the success page redirect.
+    // This webhook can be used for other post-payment actions like sending receipts,
+    // logging, or as a backup fulfillment method.
+    console.log(`Webhook received for completed session: ${session.id}. Primary order fulfillment is handled on the client success page.`);
 
-    try {
-      const { orderId, userId } = session.metadata || {};
-
-      if (!orderId || !userId) {
-        throw new Error(`Missing metadata (orderId or userId) for session: ${session.id}`);
-      }
-      
-      // 1. Fetch the pending order from Firestore
-      const orderDocRef = doc(db, 'orders', orderId);
-      const orderDocSnap = await getDoc(orderDocRef);
-
-      if (!orderDocSnap.exists()) {
-          throw new Error(`Order with ID ${orderId} not found.`);
-      }
-
-      const orderData = orderDocSnap.data() as Order;
-
-      // 2. Idempotency Check: Ensure we only process pending orders.
-      if (orderData.status !== 'pending') {
-          console.log(`Order ${orderId} has already been processed (status: ${orderData.status}). Skipping.`);
-          return NextResponse.json({ received: true, message: 'Order already processed' });
-      }
-
-      // 3. Update the order document with payment details (Critical Step)
-      await updateDoc(orderDocRef, {
-        status: 'Processing',
-        paymentStatus: session.payment_status,
-        stripeCheckoutSessionId: session.id,
-        customerEmail: session.customer_details?.email,
-      });
-      console.log(`✅ Order ${orderId} updated successfully for session ${session.id}.`);
-      
-      // 4. Send notifications (Non-critical, wrapped in try/catch)
-      
-      // Notify customer
-      try {
-        await addDoc(collection(db, 'notifications'), {
-          userId,
-          message: `Your order #${orderId.slice(0, 6)}... has been placed!`,
-          type: 'order_update',
-          link: '/dashboard/orders',
-          read: false,
-          createdAt: serverTimestamp(),
-        } as Omit<Notification, 'id'>);
-        console.log(`Sent order confirmation notification to user ${userId}.`);
-      } catch (e) {
-        console.error(`Failed to send order notification to user ${userId}:`, e);
-      }
-
-      // Notify admins
-      try {
-        const adminUsersQuery = query(collection(db, 'users'), where('isAdmin', '==', true));
-        const adminUsersSnapshot = await getDocs(adminUsersQuery);
-        if (!adminUsersSnapshot.empty) {
-          const batch = writeBatch(db);
-          const notificationsRef = collection(db, 'notifications');
-          adminUsersSnapshot.forEach((adminDoc) => {
-            const notifDocRef = doc(notificationsRef); // Create a new doc ref for each notification
-            batch.set(notifDocRef, {
-              userId: adminDoc.id,
-              message: `New order #${orderId.slice(0, 6)} placed by ${session.customer_details?.email ?? userId}.`,
-              type: 'admin_action',
-              link: `/admin/orders/${orderId}`,
-              read: false,
-              createdAt: serverTimestamp(),
-            } as Omit<Notification, 'id'>);
-          });
-          await batch.commit();
-          console.log(`Sent new order notifications to ${adminUsersSnapshot.size} admin(s).`);
-        }
-      } catch (e) {
-        console.error('Failed to send new order notifications to admins:', e);
-      }
-
-    } catch (error: any) {
-      console.error(`Webhook processing error for session ${session.id}:`, error.message);
-      return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
-    }
   } else if (event.type === 'payment_intent.payment_failed') {
       const intent = event.data.object as Stripe.PaymentIntent;
-      const orderId = intent.metadata?.orderId;
+      // Metadata may not be available on payment_intent, but we check just in case.
+      // A more robust implementation might involve looking up the session via the intent ID.
       const userId = intent.metadata?.userId;
-
-      if (orderId && db) {
-        // Optionally update the order status to 'failed' or 'cancelled'
-        const orderDocRef = doc(db, 'orders', orderId);
-        try {
-            await updateDoc(orderDocRef, {
-                status: 'Cancelled',
-                paymentStatus: 'failed',
-            });
-        } catch(e) {
-             console.error(`Failed to update order ${orderId} to failed status:`, e);
-        }
-      }
 
       if (userId && db) {
         try {

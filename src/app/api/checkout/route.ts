@@ -54,11 +54,8 @@ export async function POST(req: NextRequest) {
            priceInCents = Math.round(productData.price * 100);
        } catch (dbError: any) {
            console.error(`Error fetching price for product ${item.id}:`, dbError);
-           // Decide how to handle: fail checkout or use client price with warning
-           // Using client price here, but log a critical warning. NOT RECOMMENDED for production.
            console.warn(`CRITICAL: Using client-side price for ${item.name} (${item.id}) due to DB error. This is insecure!`);
            priceInCents = Math.round(item.price * 100); // Fallback to client price (INSECURE)
-           // OR: throw new Error(`Failed to verify price for product ${item.name}. Please try again.`);
        }
 
 
@@ -67,8 +64,11 @@ export async function POST(req: NextRequest) {
             currency: 'usd',
             product_data: {
                 name: item.name,
-                images: [item.imageUrl], // Optional: add image URL
-                // Add description if desired: description: item.description,
+                images: [item.imageUrl],
+                metadata: {
+                    productId: item.id,
+                    imageHint: item.imageHint || '',
+                }
             },
             unit_amount: priceInCents,
             },
@@ -87,11 +87,8 @@ export async function POST(req: NextRequest) {
       cancel_url: `${origin}/checkout/cancel`,
       metadata: {
         userId: userId,
-         // Store cart details minimally if needed for webhook confirmation
-         cartItems: JSON.stringify(items.map(i => ({ id: i.id, quantity: i.quantity }))), // Store IDs and quantities
+         cartItems: JSON.stringify(items.map(i => ({ id: i.id, quantity: i.quantity }))),
       },
-       // If user is logged in, prefill email - fetch from DB or pass from client if trusted
-       // customer_email: userEmail,
     });
 
     if (!session.id) {
@@ -102,11 +99,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error("Stripe Checkout Error:", error);
-    // Provide a more generic error message to the client
     return NextResponse.json({ error: `Internal Server Error occurred.` }, { status: 500 });
   }
 }
-
-// Reminder: Ensure STRIPE_SECRET_KEY is set in your environment variables.
-// Also ensure NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is set for the client-side.
-
