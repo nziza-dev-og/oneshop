@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -10,65 +11,59 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
-import type { Order } from '@/types'; // Corrected type import
-import { useToast } from '@/hooks/use-toast'; // Import useToast
-import { ShoppingBag } from 'lucide-react'; // Import icon for empty state
-import { format } from 'date-fns'; // Import format for better date display
+import type { Order } from '@/types';
+import { useToast } from '@/hooks/use-toast';
+import { ShoppingBag } from 'lucide-react';
+import { format } from 'date-fns';
 
-// Renamed function
 export default function DashboardOrdersPage() {
   const { user, loading: authLoading } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const router = useRouter(); // Keep router if needed for redirecting non-logged in users
-  const { toast } = useToast(); // Initialize toast
+  const router = useRouter();
+  const { toast } = useToast();
 
   useEffect(() => {
-    // Ensure user is loaded, not loading, and db is available
     if (authLoading) {
-      setLoading(true); // Keep loading if auth state is still determining
+      setLoading(true);
       return;
     }
     if (!user) {
-       setLoading(false); // Stop loading if user is not logged in (layout handles redirect)
+       setLoading(false);
        return;
     }
     if (!db) {
        toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
-       setLoading(false); // Stop loading if DB is unavailable
+       setLoading(false);
        return;
     }
 
-    setLoading(true); // Start loading orders
+    setLoading(true);
     const ordersRef = collection(db, 'orders');
-    // Query orders for the current user, ordered by date descending
     const q = query(ordersRef, where('userId', '==', user.uid), orderBy('orderDate', 'desc'));
 
-    // Use onSnapshot for real-time updates
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const fetchedOrders = querySnapshot.docs.map(doc => {
         const data = doc.data();
 
-        // Robust date handling
-        let orderDate: Date | null = null;
+        let orderDate: Date;
         if (data.orderDate instanceof Timestamp) {
           orderDate = data.orderDate.toDate();
         } else if (data.orderDate?.seconds && typeof data.orderDate.seconds === 'number') {
-          // Handle cases where it might be stored as an object { seconds: ..., nanoseconds: ... }
           orderDate = new Timestamp(data.orderDate.seconds, data.orderDate.nanoseconds || 0).toDate();
         } else if (data.orderDate instanceof Date) {
-          orderDate = data.orderDate; // Already a Date object
+          orderDate = data.orderDate;
         } else {
            console.warn(`Invalid or missing date format for order ${doc.id}:`, data.orderDate);
-           // Keep orderDate as null if invalid/missing, handle display later
+           orderDate = new Date(); // Fallback to prevent errors
         }
 
         return {
           id: doc.id,
           userId: data.userId,
-          items: data.items || [], // Ensure items array exists
-          totalPrice: data.totalPrice || 0, // Ensure totalPrice exists
-          orderDate: orderDate, // Assign the potentially null Date object
+          items: data.items || [],
+          totalPrice: data.totalPrice || 0,
+          orderDate: orderDate,
           status: data.status || 'Processing',
           stripeCheckoutSessionId: data.stripeCheckoutSessionId,
           paymentStatus: data.paymentStatus,
@@ -76,20 +71,18 @@ export default function DashboardOrdersPage() {
         } as Order;
       });
       setOrders(fetchedOrders);
-      setLoading(false); // Stop loading after fetching/processing
-    }, (error) => { // Error handling for onSnapshot
+      setLoading(false);
+    }, (error) => {
       console.error("Error fetching orders:", error);
       toast({ title: "Error", description: "Could not fetch your orders.", variant: "destructive" });
-      setOrders([]); // Clear orders on error
-      setLoading(false); // Stop loading on error
+      setOrders([]);
+      setLoading(false);
     });
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
 
-  }, [user, authLoading, toast]); // Added db to dependency array if it can change, though typically it doesn't
+  }, [user, authLoading, toast]);
 
-   // Loading state skeleton
    if (loading) {
      return (
         <div>
@@ -111,7 +104,7 @@ export default function DashboardOrdersPage() {
                  </TableRow>
                </TableHeader>
                <TableBody>
-                 {[...Array(2)].map((_, i) => ( // Show skeleton for 2 orders
+                 {[...Array(2)].map((_, i) => (
                    <TableRow key={i}>
                      <TableCell className="hidden sm:table-cell">
                        <Skeleton className="h-12 w-12 rounded-md" />
@@ -133,7 +126,6 @@ export default function DashboardOrdersPage() {
      );
    }
 
-  // Handled by layout, but good fallback
   if (!user && !authLoading) {
     return <div className="text-center text-muted-foreground p-6">Please log in to view your orders.</div>;
   }
@@ -165,7 +157,6 @@ export default function DashboardOrdersPage() {
                     <div>
                         <CardTitle className="text-lg font-semibold">Order #{order.id.substring(0, 8)}...</CardTitle>
                         <CardDescription className="text-xs text-muted-foreground">
-                           {/* Safely format date, provide fallback */}
                            Placed on: {order.orderDate instanceof Date ? format(order.orderDate, 'PPP') : 'Date unavailable'}
                         </CardDescription>
                     </div>
@@ -201,10 +192,10 @@ export default function DashboardOrdersPage() {
                              <Image
                                src={item.imageUrl}
                                alt={item.name}
-                               fill // Use fill instead of layout="fill"
-                               style={{ objectFit: 'cover' }} // Use style object for objectFit
-                               sizes="(max-width: 640px) 10vw, 5vw" // Provide sizes for responsive images
-                               data-ai-hint={item.imageHint || 'product image'} // Add fallback hint
+                               fill
+                               style={{ objectFit: 'cover' }}
+                               sizes="(max-width: 640px) 10vw, 5vw"
+                               data-ai-hint={item.imageHint || 'product image'}
                               />
                            </div>
                         </TableCell>
