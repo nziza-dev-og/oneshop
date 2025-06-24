@@ -2,46 +2,46 @@
 import { NextResponse, NextRequest } from 'next/server';
 import Stripe from 'stripe';
 import { headers } from 'next/headers';
-import { db } from '@/lib/firebase/firebase'; // db might be null
-import { collection, addDoc, serverTimestamp, query, where, getDocs, writeBatch } from "firebase/firestore"; // Import necessary Firestore functions
-import type { CartItem, Notification } from '@/types'; // Import types
+import { db } from '@/lib/firebase/firebase';
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
+  getDocs,
+  writeBatch,
+  doc,
+  getDoc,
+} from 'firebase/firestore';
+import type { CartItem, Notification, Order } from '@/types';
 
-// Check for Stripe keys during initialization
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
 let stripe: Stripe | null = null;
-
-if (!stripeSecretKey) {
-  console.error("Stripe secret key is missing. Ensure STRIPE_SECRET_KEY is set in environment variables.");
+if (stripeSecretKey) {
+  stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-06-20' });
 } else {
-  stripe = new Stripe(stripeSecretKey, {
-    apiVersion: '2024-06-20',
-  });
+  console.error('Stripe secret key is missing. Set STRIPE_SECRET_KEY in .env');
 }
 
 if (!webhookSecret) {
-    console.error("Stripe webhook secret is missing. Ensure STRIPE_WEBHOOK_SECRET is set in environment variables.");
+  console.error('Stripe webhook secret is missing. Set STRIPE_WEBHOOK_SECRET in .env');
 }
 
 export async function POST(req: NextRequest) {
-  // Check if Stripe and webhook secret are configured
   if (!stripe || !webhookSecret) {
-    return NextResponse.json({ error: 'Stripe service or webhook secret is not configured.' }, { status: 500 });
+    return NextResponse.json({ error: 'Stripe service not configured' }, { status: 500 });
   }
-
-  // Check if db is available early
   if (!db) {
-      console.error("Webhook Error: Firestore database instance is not available.");
-      // Return 503 Service Unavailable, as this is a server-side configuration issue
-      return NextResponse.json({ error: 'Database service unavailable' }, { status: 503 });
+    return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
 
   const body = await req.text();
   const signature = headers().get('stripe-signature') as string;
 
   let event: Stripe.Event;
-
   try {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (err: any) {
@@ -49,156 +49,136 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
-  // Handle the event
-  switch (event.type) {
-    case 'checkout.session.completed':
-      const session = event.data.object as Stripe.Checkout.Session;
-      console.log('Checkout Session Completed:', session.id);
+  // Handle the 'checkout.session.completed' event
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    console.log('Processing checkout.session.completed for session:', session.id);
 
-       // Retrieve metadata
-       const userId = session.metadata?.userId;
-       const cartItemsString = session.metadata?.cartItems; // Get cart details from metadata
+    try {
+      const { userId, cartItems: cartItemsString } = session.metadata || {};
 
-       if (!userId) {
-           console.error("Webhook Error: Missing userId in session metadata for session:", session.id);
-           // Return 400 Bad Request as the necessary info is missing from Stripe's side (or wasn't sent)
-           return NextResponse.json({ error: 'Missing userId in metadata' }, { status: 400 });
-       }
-       if (!cartItemsString) {
-            console.error("Webhook Error: Missing cartItems in session metadata for session:", session.id);
-            return NextResponse.json({ error: 'Missing cartItems in metadata' }, { status: 400 });
-       }
+      if (!userId || !cartItemsString) {
+        throw new Error(`Missing metadata (userId or cartItems) for session: ${session.id}`);
+      }
 
-        // Avoid processing the same session multiple times (idempotency)
-        try {
-            const ordersRef = collection(db, 'orders');
-            const q = query(ordersRef, where('stripeCheckoutSessionId', '==', session.id));
-            const existingOrders = await getDocs(q);
-            if (!existingOrders.empty) {
-                console.log(`Webhook Info: Order for session ${session.id} already processed.`);
-                return NextResponse.json({ received: true, message: 'Order already processed.' });
-            }
-        } catch (dbError: any) {
-            console.error(`Webhook Error: Failed to check for existing order for session ${session.id}:`, dbError);
-            // Continue processing but log the error, maybe retry logic is needed later
+      // 1. Idempotency Check: Ensure we don't process the same order twice.
+      const ordersRef = collection(db, 'orders');
+      const q = query(ordersRef, where('stripeCheckoutSessionId', '==', session.id));
+      const existingOrders = await getDocs(q);
+      if (!existingOrders.empty) {
+        console.log(`Order for session ${session.id} already exists. Skipping.`);
+        return NextResponse.json({ received: true, message: 'Order already processed' });
+      }
+
+      // 2. Parse cart items and fetch product data securely from DB
+      const cartItems: { id: string; quantity: number }[] = JSON.parse(cartItemsString);
+      const orderItemsPromises = cartItems.map(async ({ id, quantity }) => {
+        const productRef = doc(db, 'products', id);
+        const productSnap = await getDoc(productRef);
+        if (!productSnap.exists()) {
+          console.warn(`Product with ID ${id} not found. Skipping item in order ${session.id}.`);
+          return null;
         }
+        const productData = productSnap.data();
+        return {
+          id,
+          quantity,
+          name: productData.name ?? 'Unknown Product',
+          price: productData.price ?? 0,
+          imageUrl: productData.imageUrl ?? '',
+          imageHint: productData.imageHint ?? '',
+          description: productData.description ?? '',
+        } as CartItem;
+      });
 
-        // Retrieve line items to confirm details - this is more reliable than metadata alone
-        try {
-            // Note: listLineItems might not contain full product details like image URL.
-            // You might need to fetch these from your DB based on product ID if required for the order document.
-            const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 100 }); // Adjust limit as needed
+      const resolvedOrderItems = await Promise.all(orderItemsPromises);
+      const validOrderItems = resolvedOrderItems.filter((item): item is CartItem => item !== null);
 
-             if (!lineItems || lineItems.data.length === 0) {
-                 console.error("Webhook Error: Could not retrieve line items for session", session.id);
-                 return NextResponse.json({ error: 'Could not retrieve line items' }, { status: 400 });
-             }
+      if (validOrderItems.length === 0) {
+        throw new Error(`No valid products found for order in session ${session.id}.`);
+      }
 
-             // Parse cart items from metadata for reconciliation/product details
-             let cartItemsFromMeta: { id: string; quantity: number }[] = [];
-             try {
-                 cartItemsFromMeta = JSON.parse(cartItemsString);
-             } catch (parseError) {
-                 console.error(`Webhook Error: Failed to parse cartItems metadata for session ${session.id}:`, parseError);
-                 return NextResponse.json({ error: 'Invalid cartItems metadata' }, { status: 400 });
-             }
+      // 3. Create and save the order document (Critical Step)
+      const orderData: Omit<Order, 'id'> = {
+        userId,
+        items: validOrderItems,
+        totalPrice: (session.amount_total ?? 0) / 100,
+        orderDate: serverTimestamp(),
+        status: 'Processing',
+        stripeCheckoutSessionId: session.id,
+        paymentStatus: session.payment_status,
+        customerEmail: session.customer_details?.email,
+      };
 
-             // Create order items - fetch full product details from DB based on IDs in cartItemsFromMeta
-             const orderItemsPromises = cartItemsFromMeta.map(async (metaItem) => {
-                 const productRef = doc(db, 'products', metaItem.id);
-                 const productSnap = await getDoc(productRef);
-                 if (!productSnap.exists()) {
-                     // Handle case where product doesn't exist (maybe was deleted)
-                     console.error(`Webhook Error: Product ${metaItem.id} not found in DB for order creation.`);
-                     // Option 1: Throw error to fail webhook (Stripe will retry)
-                     // throw new Error(`Product ${metaItem.id} not found.`);
-                     // Option 2: Skip item or use placeholder data (less ideal)
-                     return null; // Skip this item
-                 }
-                 const productData = productSnap.data();
-                 return {
-                     id: metaItem.id,
-                     name: productData.name,
-                     price: productData.price,
-                     quantity: metaItem.quantity,
-                     imageUrl: productData.imageUrl || '', // Get image URL from DB
-                     imageHint: productData.imageHint || '', // Get hint from DB
-                 } as CartItem;
-             });
+      const orderRef = await addDoc(ordersRef, orderData);
+      console.log(`✅ Order ${orderRef.id} created successfully for session ${session.id}.`);
 
-             const resolvedOrderItems = await Promise.all(orderItemsPromises);
-             const validOrderItems = resolvedOrderItems.filter(item => item !== null) as CartItem[];
+      // 4. Send notifications (Non-critical, wrapped in try/catch)
+      
+      // Notify customer
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          userId,
+          message: `Your order #${orderRef.id.slice(0, 6)}... has been placed!`,
+          type: 'order_update',
+          link: '/dashboard/orders',
+          read: false,
+          createdAt: serverTimestamp(),
+        } as Omit<Notification, 'id'>);
+        console.log(`Sent order confirmation notification to user ${userId}.`);
+      } catch (e) {
+        console.error(`Failed to send order notification to user ${userId}:`, e);
+      }
 
-             if (validOrderItems.length !== cartItemsFromMeta.length) {
-                 // Log discrepancy if some products were skipped
-                 console.warn(`Webhook Warning: Some items for session ${session.id} could not be added to the order due to missing product data.`);
-                 // Decide if checkout should fail or proceed with partial order
-             }
-
-             if (validOrderItems.length === 0) {
-                  console.error(`Webhook Error: No valid items could be processed for order in session ${session.id}.`);
-                 return NextResponse.json({ error: 'No valid items found for order' }, { status: 400 });
-             }
-
-
-            const orderData = {
-                userId: userId,
-                items: validOrderItems,
-                totalPrice: session.amount_total ? session.amount_total / 100 : 0, // Convert from cents
-                orderDate: serverTimestamp(), // Use server timestamp
-                status: 'Processing', // Initial status after successful payment
-                stripeCheckoutSessionId: session.id, // Store Stripe session ID for reference
-                paymentStatus: session.payment_status, // Store payment status (e.g., 'paid')
-                customerEmail: session.customer_details?.email, // Store customer email if available
-            };
-
-            // Save the order to Firestore 'orders' collection
-            await addDoc(collection(db, "orders"), orderData);
-            console.log(`Order created in Firestore for session: ${session.id}, User: ${userId}`);
-
-            // Optionally: Send order confirmation notification to user
-             try {
-                 const notificationData: Omit<Notification, 'id' | 'createdAt'> = {
-                     userId: userId,
-                     message: `Your order #${orderData.stripeCheckoutSessionId.substring(0, 6)}... has been placed successfully!`,
-                     type: 'order_update',
-                     link: '/dashboard/orders', // Link to user's order page
-                     read: false,
-                     createdAt: serverTimestamp(),
-                 };
-                 await addDoc(collection(db, "notifications"), notificationData);
-                 console.log(`Order confirmation notification sent to user ${userId} for session ${session.id}`);
-             } catch (notificationError) {
-                 console.error("Webhook Error: Failed to send order confirmation notification:", notificationError);
-                 // Don't fail the webhook for notification error, just log it
-             }
-
-
-        } catch (processError: any) {
-             console.error(`Webhook Error: Failed to process checkout.session.completed ${session.id}:`, processError);
-             // Return 500 Internal Server Error to Stripe, so it retries
-             return NextResponse.json({ error: `Failed to process order: ${processError.message}` }, { status: 500 });
+      // Notify admins
+      try {
+        const adminUsersQuery = query(collection(db, 'users'), where('isAdmin', '==', true));
+        const adminUsersSnapshot = await getDocs(adminUsersQuery);
+        if (!adminUsersSnapshot.empty) {
+          const batch = writeBatch(db);
+          const notificationsRef = collection(db, 'notifications');
+          adminUsersSnapshot.forEach((adminDoc) => {
+            const notifDocRef = doc(notificationsRef); // Create a new doc ref for each notification
+            batch.set(notifDocRef, {
+              userId: adminDoc.id,
+              message: `New order #${orderRef.id.slice(0, 6)} placed by ${orderData.customerEmail ?? userId}.`,
+              type: 'admin_action',
+              link: `/admin/orders/${orderRef.id}`,
+              read: false,
+              createdAt: serverTimestamp(),
+            } as Omit<Notification, 'id'>);
+          });
+          await batch.commit();
+          console.log(`Sent new order notifications to ${adminUsersSnapshot.size} admin(s).`);
         }
+      } catch (e) {
+        console.error('Failed to send new order notifications to admins:', e);
+      }
 
-      break;
-    case 'payment_intent.succeeded':
-      // Often covered by checkout.session.completed, but useful for other payment flows
-      const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      console.log(`PaymentIntent succeeded: ${paymentIntent.id}`);
-      // Handle successful payment intent (e.g., update order status if not already done)
-      break;
-    case 'payment_intent.payment_failed':
-        const failedPaymentIntent = event.data.object as Stripe.PaymentIntent;
-        console.log(`PaymentIntent failed: ${failedPaymentIntent.id}`, failedPaymentIntent.last_payment_error?.message);
-        // Handle failed payment (e.g., notify user, update order status to 'Failed')
-        // Find the corresponding order by session ID (if available in intent metadata or via lookup)
-        // Send notification to user about payment failure
-        break;
-    // ... handle other relevant event types (e.g., refunds)
-    default:
-      console.log(`Unhandled webhook event type: ${event.type}`);
+    } catch (error: any) {
+      console.error(`Webhook processing error for session ${session.id}:`, error.message);
+      return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
+    }
+  } else if (event.type === 'payment_intent.payment_failed') {
+      const intent = event.data.object as Stripe.PaymentIntent;
+      const userId = intent.metadata?.userId;
+      if (userId && db) {
+        try {
+          await addDoc(collection(db, 'notifications'), {
+            userId,
+            message: `Payment failed: ${intent.last_payment_error?.message ?? 'Unknown error'}. Please check your payment details.`,
+            type: 'system_alert',
+            link: '/cart',
+            read: false,
+            createdAt: serverTimestamp(),
+          });
+        } catch (e) {
+            console.error('Failed to send payment failure notification:', e);
+        }
+      }
+  } else {
+    console.log(`Received unhandled event type: ${event.type}`);
   }
 
-  // Return a 200 response to acknowledge receipt of the event
   return NextResponse.json({ received: true });
 }
