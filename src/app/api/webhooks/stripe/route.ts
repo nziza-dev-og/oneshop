@@ -13,6 +13,7 @@ import {
   writeBatch,
   doc,
   getDoc,
+  updateDoc,
 } from 'firebase/firestore';
 import type { CartItem, Notification, Order } from '@/types';
 
@@ -55,71 +56,44 @@ export async function POST(req: NextRequest) {
     console.log('Processing checkout.session.completed for session:', session.id);
 
     try {
-      const { userId, cartItems: cartItemsString } = session.metadata || {};
+      const { orderId, userId } = session.metadata || {};
 
-      if (!userId || !cartItemsString) {
-        throw new Error(`Missing metadata (userId or cartItems) for session: ${session.id}`);
+      if (!orderId || !userId) {
+        throw new Error(`Missing metadata (orderId or userId) for session: ${session.id}`);
+      }
+      
+      // 1. Fetch the pending order from Firestore
+      const orderDocRef = doc(db, 'orders', orderId);
+      const orderDocSnap = await getDoc(orderDocRef);
+
+      if (!orderDocSnap.exists()) {
+          throw new Error(`Order with ID ${orderId} not found.`);
       }
 
-      // 1. Idempotency Check: Ensure we don't process the same order twice.
-      const ordersRef = collection(db, 'orders');
-      const q = query(ordersRef, where('stripeCheckoutSessionId', '==', session.id));
-      const existingOrders = await getDocs(q);
-      if (!existingOrders.empty) {
-        console.log(`Order for session ${session.id} already exists. Skipping.`);
-        return NextResponse.json({ received: true, message: 'Order already processed' });
+      const orderData = orderDocSnap.data() as Order;
+
+      // 2. Idempotency Check: Ensure we only process pending orders.
+      if (orderData.status !== 'pending') {
+          console.log(`Order ${orderId} has already been processed (status: ${orderData.status}). Skipping.`);
+          return NextResponse.json({ received: true, message: 'Order already processed' });
       }
 
-      // 2. Parse cart items and fetch product data securely from DB
-      const cartItems: { id: string; quantity: number }[] = JSON.parse(cartItemsString);
-      const orderItemsPromises = cartItems.map(async ({ id, quantity }) => {
-        const productRef = doc(db, 'products', id);
-        const productSnap = await getDoc(productRef);
-        if (!productSnap.exists()) {
-          console.warn(`Product with ID ${id} not found. Skipping item in order ${session.id}.`);
-          return null;
-        }
-        const productData = productSnap.data();
-        return {
-          id,
-          quantity,
-          name: productData.name ?? 'Unknown Product',
-          price: productData.price ?? 0,
-          imageUrl: productData.imageUrl ?? '',
-          imageHint: productData.imageHint ?? '',
-          description: productData.description ?? '',
-        } as CartItem;
-      });
-
-      const resolvedOrderItems = await Promise.all(orderItemsPromises);
-      const validOrderItems = resolvedOrderItems.filter((item): item is CartItem => item !== null);
-
-      if (validOrderItems.length === 0) {
-        throw new Error(`No valid products found for order in session ${session.id}.`);
-      }
-
-      // 3. Create and save the order document (Critical Step)
-      const orderData: Omit<Order, 'id'> = {
-        userId,
-        items: validOrderItems,
-        totalPrice: (session.amount_total ?? 0) / 100,
-        orderDate: serverTimestamp(),
+      // 3. Update the order document with payment details (Critical Step)
+      await updateDoc(orderDocRef, {
         status: 'Processing',
-        stripeCheckoutSessionId: session.id,
         paymentStatus: session.payment_status,
+        stripeCheckoutSessionId: session.id,
         customerEmail: session.customer_details?.email,
-      };
-
-      const orderRef = await addDoc(ordersRef, orderData);
-      console.log(`✅ Order ${orderRef.id} created successfully for session ${session.id}.`);
-
+      });
+      console.log(`✅ Order ${orderId} updated successfully for session ${session.id}.`);
+      
       // 4. Send notifications (Non-critical, wrapped in try/catch)
       
       // Notify customer
       try {
         await addDoc(collection(db, 'notifications'), {
           userId,
-          message: `Your order #${orderRef.id.slice(0, 6)}... has been placed!`,
+          message: `Your order #${orderId.slice(0, 6)}... has been placed!`,
           type: 'order_update',
           link: '/dashboard/orders',
           read: false,
@@ -141,9 +115,9 @@ export async function POST(req: NextRequest) {
             const notifDocRef = doc(notificationsRef); // Create a new doc ref for each notification
             batch.set(notifDocRef, {
               userId: adminDoc.id,
-              message: `New order #${orderRef.id.slice(0, 6)} placed by ${orderData.customerEmail ?? userId}.`,
+              message: `New order #${orderId.slice(0, 6)} placed by ${session.customer_details?.email ?? userId}.`,
               type: 'admin_action',
-              link: `/admin/orders/${orderRef.id}`,
+              link: `/admin/orders/${orderId}`,
               read: false,
               createdAt: serverTimestamp(),
             } as Omit<Notification, 'id'>);
@@ -161,7 +135,22 @@ export async function POST(req: NextRequest) {
     }
   } else if (event.type === 'payment_intent.payment_failed') {
       const intent = event.data.object as Stripe.PaymentIntent;
+      const orderId = intent.metadata?.orderId;
       const userId = intent.metadata?.userId;
+
+      if (orderId && db) {
+        // Optionally update the order status to 'failed' or 'cancelled'
+        const orderDocRef = doc(db, 'orders', orderId);
+        try {
+            await updateDoc(orderDocRef, {
+                status: 'Cancelled',
+                paymentStatus: 'failed',
+            });
+        } catch(e) {
+             console.error(`Failed to update order ${orderId} to failed status:`, e);
+        }
+      }
+
       if (userId && db) {
         try {
           await addDoc(collection(db, 'notifications'), {

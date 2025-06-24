@@ -41,9 +41,9 @@ export interface Order {
   items: CartItem[]; // Store denormalized item details
   totalPrice: number;
   orderDate: Timestamp | Date; // Changed to Timestamp | Date, fallback handled in components
-  status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled'; // Example statuses
+  status: 'pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled'; // Example statuses
   stripeCheckoutSessionId?: string; // Added Stripe session ID
-  paymentStatus?: string; // Added payment status from Stripe
+  paymentStatus?: string; // Added payment status from Stripe (e.g., 'paid', 'unpaid', or our custom 'pending')
   customerEmail?: string | null; // Added customer email
   // Add shippingAddress, paymentMethod etc. if needed
 }
@@ -83,4 +83,5 @@ export interface Address {
   isDefault?: boolean; // Optional: Mark as default shipping/billing
   type?: 'shipping' | 'billing' | 'both'; // Optional: Address type
 }
+
 
