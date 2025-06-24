@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge'; // Added Badge import
+import { Badge } from '@/components/ui/badge';
 import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/hooks/use-toast';
@@ -17,13 +17,9 @@ import { Trash2, Minus, Plus, ShoppingCart, Loader2, XCircle, PackageSearch } fr
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { Product } from '@/types';
 import getStripe from '@/lib/stripe/client';
-
-// Placeholder suggested products
-const suggestedProducts: Omit<Product, 'description' | 'createdAt'>[] = [
-  { id: 'suggestion-1', name: 'Wireless Earbuds', price: 79.99, imageUrl: 'https://placehold.co/150x150.png', imageHint: 'earbuds audio' },
-  { id: 'suggestion-2', name: 'USB-C Fast Charger', price: 24.99, imageUrl: 'https://placehold.co/150x150.png', imageHint: 'charger adapter' },
-  { id: 'suggestion-3', name: 'Screen Protector', price: 12.99, imageUrl: 'https://placehold.co/150x150.png', imageHint: 'screen protector mobile' },
-];
+import { collection, getDocs, query, limit } from 'firebase/firestore';
+import { db } from '@/lib/firebase/firebase';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, clearCart, getTotalItems, getTotalPrice, addItem: addItemToCartHook } = useCart();
@@ -33,10 +29,49 @@ export default function CartPage() {
   const [isClient, setIsClient] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [promocode, setPromocode] = useState('');
+  const [suggestedProducts, setSuggestedProducts] = useState<Product[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(true);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // Fetch suggested products from Firestore
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+        if (!db) {
+            console.warn("Database not available for fetching suggestions.");
+            setSuggestionsLoading(false);
+            return;
+        }
+        setSuggestionsLoading(true);
+        try {
+            const productsRef = collection(db, 'products');
+            const q = query(productsRef, limit(3));
+            const querySnapshot = await getDocs(q);
+            const fetchedProducts = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            } as Product));
+            
+            // Filter out items that are already in the cart
+            const cartItemIds = new Set(items.map(item => item.id));
+            const filteredSuggestions = fetchedProducts.filter(p => !cartItemIds.has(p.id));
+
+            setSuggestedProducts(filteredSuggestions);
+        } catch (error) {
+            console.error("Error fetching product suggestions:", error);
+            // Optionally, show a toast for critical errors
+        } finally {
+            setSuggestionsLoading(false);
+        }
+    };
+
+    // Only fetch on the client side
+    if (isClient) {
+      fetchSuggestions();
+    }
+  }, [isClient, items]);
 
   const totalItems = isClient ? getTotalItems() : 0;
   const totalPrice = isClient ? getTotalPrice() : 0;
@@ -47,9 +82,6 @@ export default function CartPage() {
 
   const handleQuantityChange = (productId: string, newQuantity: number) => {
     if (newQuantity < 1) {
-      // This case should ideally trigger the remove confirmation
-      // For simplicity, we'll rely on the dedicated remove button for removal.
-      // Or, you can show an AlertDialog here too.
       removeItem(productId);
       toast({ title: "Item Removed", description: "Item removed from cart." });
     } else {
@@ -119,18 +151,11 @@ export default function CartPage() {
     }
   };
 
-  const handleAddSuggestionToCart = (suggestion: Omit<Product, 'description' | 'createdAt'>) => {
-    // We need to cast the suggestion to Product, assuming missing fields are not critical for cart item display
-    const productToAdd: Product = {
-        ...suggestion,
-        description: `Suggested item: ${suggestion.name}`, // Placeholder description
-        imageHint: suggestion.imageHint || '', // Ensure imageHint is present
-        createdAt: new Date().getTime(), // Placeholder createdAt
-    };
-    addItemToCartHook(productToAdd);
+  const handleAddSuggestionToCart = (product: Product) => {
+    addItemToCartHook(product);
     toast({
       title: "Added to Cart",
-      description: `${suggestion.name} has been added to your cart.`,
+      description: `${product.name} has been added to your cart.`,
     });
   };
 
@@ -227,7 +252,6 @@ export default function CartPage() {
                     <h3 className="text-lg font-semibold text-foreground line-clamp-2">{item.name}</h3>
                   </Link>
                   <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs mt-1">In Stock</Badge>
-                  {/* <p className="text-sm text-muted-foreground">${item.price.toFixed(2)} each</p> */}
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3 my-2 sm:my-0">
                   <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleQuantityChange(item.id, item.quantity - 1)} disabled={isCheckingOut}>
@@ -256,29 +280,42 @@ export default function CartPage() {
 
           {items.length > 0 && (
             <div className="mt-10 pt-8 border-t">
-              <h2 className="text-xl font-semibold mb-4 text-foreground">You may need these for a smooth experience</h2>
+              <h2 className="text-xl font-semibold mb-4 text-foreground">You may also like</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                {suggestedProducts.map(suggestion => (
-                  <Card key={suggestion.id} className="overflow-hidden">
-                    <div className="relative h-32 w-full">
-                        <Image src={suggestion.imageUrl} alt={suggestion.name} fill style={{objectFit: 'cover'}} sizes="30vw" data-ai-hint={suggestion.imageHint}/>
-                    </div>
-                    <CardContent className="p-3">
-                      <h4 className="text-sm font-medium truncate mb-1">{suggestion.name}</h4>
-                      <p className="text-sm text-muted-foreground mb-2">${suggestion.price.toFixed(2)}</p>
-                      <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => handleAddSuggestionToCart(suggestion)}>
-                        <ShoppingCart className="mr-1.5 h-3.5 w-3.5" /> Add to cart
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
+                {suggestionsLoading ? (
+                  [...Array(3)].map((_, i) => (
+                    <Card key={i}>
+                      <Skeleton className="h-32 w-full"/>
+                      <CardContent className="p-3 space-y-2">
+                        <Skeleton className="h-4 w-3/4"/>
+                        <Skeleton className="h-4 w-1/2"/>
+                        <Skeleton className="h-9 w-full mt-1"/>
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : (
+                  suggestedProducts.map(product => (
+                    <Card key={product.id} className="overflow-hidden">
+                      <div className="relative h-32 w-full">
+                          <Image src={product.imageUrl} alt={product.name} fill style={{objectFit: 'cover'}} sizes="30vw" data-ai-hint={product.imageHint}/>
+                      </div>
+                      <CardContent className="p-3">
+                        <h4 className="text-sm font-medium truncate mb-1">{product.name}</h4>
+                        <p className="text-sm text-muted-foreground mb-2">${product.price.toFixed(2)}</p>
+                        <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => handleAddSuggestionToCart(product)}>
+                          <ShoppingCart className="mr-1.5 h-3.5 w-3.5" /> Add to cart
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
               </div>
             </div>
           )}
         </div>
 
         {items.length > 0 && (
-          <div className="lg:col-span-1 sticky top-24"> {/* Added top-24 for spacing from header */}
+          <div className="lg:col-span-1 sticky top-24">
             <Card className="shadow-lg">
               <CardHeader>
                 <CardTitle className="text-lg">Order Summary</CardTitle>
