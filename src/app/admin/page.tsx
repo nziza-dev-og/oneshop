@@ -69,7 +69,7 @@ export default function AdminOverviewPage() {
           console.error("Database service not available for admin overview.");
           // Optionally show a toast or message
       }
-  }, [authLoading, isAdmin]);
+  }, [authLoading, isAdmin, db]);
 
   if (authLoading || statsLoading) {
     return (

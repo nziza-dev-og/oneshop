@@ -146,8 +146,7 @@ export default function AdminOrdersPage() {
         setLoading(false);
         toast({ title: "Error", description: "Database service is not available.", variant: "destructive" });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, authLoading, isAdmin, db, router, toast, filterUserId, userEmails]); // Removed filteredUserName dependency
+  }, [user, authLoading, isAdmin, db, router, toast, filterUserId]);
 
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
@@ -194,8 +193,6 @@ export default function AdminOrdersPage() {
              console.log(`Notification sent to user ${orderToUpdate.userId} for order ${orderId}`);
          } catch (notificationError) {
              console.error("Error sending order status notification:", notificationError);
-             // Optionally show a toast, but the main action (order update) succeeded
-             // toast({ title: "Notification Error", description: "Could not send update notification to user.", variant: "destructive" });
          }
       }
 
@@ -228,7 +225,7 @@ export default function AdminOrdersPage() {
                    <TableHead><Skeleton className="h-5 w-24" /></TableHead>
                    <TableHead><Skeleton className="h-5 w-16 text-right" /></TableHead>
                    <TableHead><Skeleton className="h-5 w-24 text-center" /></TableHead>
-                    <TableHead><Skeleton className="h-5 w-10 text-right" /></TableHead>{/* Actions column */}
+                    <TableHead><Skeleton className="h-5 w-10 text-right" /></TableHead>
                  </TableRow>
                </TableHeader>
                <TableBody>
@@ -239,7 +236,7 @@ export default function AdminOrdersPage() {
                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                      <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
                      <TableCell className="text-center"><Skeleton className="h-5 w-24 mx-auto" /></TableCell>
-                     <TableCell className="text-right"><Skeleton className="h-8 w-8" /></TableCell>{/* Actions cell */}
+                     <TableCell className="text-right"><Skeleton className="h-8 w-8" /></TableCell>
                    </TableRow>
                  ))}
                </TableBody>
@@ -275,7 +272,7 @@ export default function AdminOrdersPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[150px]">Order ID</TableHead>
-                    {!filterUserId && <TableHead className="min-w-[150px]">User</TableHead>}{/* Hide User column if filtering */}
+                    {!filterUserId && <TableHead className="min-w-[150px]">User</TableHead>}
                     <TableHead className="w-[150px]">Date</TableHead>
                     <TableHead className="w-[100px] text-right">Total</TableHead>
                     <TableHead className="w-[120px] text-center">Status</TableHead>
@@ -288,11 +285,10 @@ export default function AdminOrdersPage() {
                       <TableCell className="font-medium">{order.id.substring(0,8)}...</TableCell>
                        {!filterUserId && (
                            <TableCell>
-                             <div className="font-medium">{order.customerEmail || userEmails[order.userId] || 'N/A'}</div>{/* Display fetched/cached email */}
+                             <div className="font-medium">{order.customerEmail || userEmails[order.userId] || 'N/A'}</div>
                              <div className="text-xs text-muted-foreground">{order.userId.substring(0,10)}...</div>
                            </TableCell>
                        )}
-                       {/* Ensure orderDate is a Date object before calling toLocaleDateString */}
                       <TableCell>{order.orderDate instanceof Date ? order.orderDate.toLocaleDateString() : 'Invalid Date'}</TableCell>
                       <TableCell className="text-right">${order.totalPrice.toFixed(2)}</TableCell>
                       <TableCell className="text-center">
@@ -396,4 +392,3 @@ export default function AdminOrdersPage() {
     </div>
   );
 }
-
