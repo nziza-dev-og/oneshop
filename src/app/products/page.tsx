@@ -121,7 +121,7 @@ export default function ProductsPage() {
 
       {loading ? (
         // Skeleton Loading Grid
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
           {[...Array(12)].map((_, i) => (
              <div key={i} className="flex flex-col space-y-3 border p-4 rounded-lg shadow-sm">
                 <Skeleton className="h-48 w-full rounded-md" />
@@ -154,7 +154,7 @@ export default function ProductsPage() {
       ) : (
         // Products Grid
         <motion.div
-          className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          className="grid grid-cols-1 gap-6 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4"
           initial="hidden"
           animate="visible"
           transition={{ staggerChildren: 0.05 }}

@@ -161,7 +161,7 @@ export default function HomePage() {
           Newest Additions
         </motion.h2>
         {loading ? (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
             {[...Array(8)].map((_, i) => (
               <div key={i} className="flex flex-col space-y-3 border p-4 rounded-lg shadow-sm bg-card"> {/* Use card bg */}
                 <Skeleton className="h-48 w-full rounded-md bg-muted" /> {/* Muted skeleton bg */}
@@ -194,7 +194,7 @@ export default function HomePage() {
           </motion.div>
         ) : (
           <motion.div
-            className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            className="grid grid-cols-1 gap-6 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4"
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, amount: 0.1 }}
