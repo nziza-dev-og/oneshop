@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from "next/navigation";
 import { Trash2, Minus, Plus, ShoppingCart, Loader2, XCircle, PackageSearch } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import type { Product } from '@/types';
+import type { Product, CartItem } from '@/types';
 import getStripe from '@/lib/stripe/client';
 import { collection, getDocs, query, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
@@ -118,7 +118,11 @@ export default function CartPage() {
 
     setIsCreatingOrder(true);
     try {
-        const result = await createPendingOrder(items, user.uid);
+        // Sanitize items: remove non-serializable Firestore Timestamp before passing to Server Action.
+        // The `createdAt` field is not needed for order creation.
+        const serializableItems = items.map(({ createdAt, ...item }) => item);
+
+        const result = await createPendingOrder(serializableItems, user.uid);
         if (result.success) {
             toast({ title: "Order Ready", description: "Your order is ready for payment. Please proceed to checkout." });
             setIsReadyToPay(true);
