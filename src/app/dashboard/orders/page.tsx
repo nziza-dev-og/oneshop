@@ -163,6 +163,7 @@ export default function DashboardOrdersPage() {
                     <Badge
                         variant={order.status === 'Delivered' ? 'default' : order.status === 'Cancelled' ? 'destructive' : 'secondary'}
                         className={`w-fit capitalize px-3 py-1 text-sm ${
+                            order.status === 'pending' ? 'bg-gray-100 text-gray-800 border-gray-200' :
                             order.status === 'Processing' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
                             order.status === 'Shipped' ? 'bg-blue-100 text-blue-800 border-blue-200' :
                             order.status === 'Delivered' ? 'bg-green-100 text-green-800 border-green-200' :

@@ -62,6 +62,44 @@ async function sendNotifications(orderId: string, userId: string, customerEmail:
     }
 }
 
+export async function createPendingOrder(items: CartItem[], userId: string) {
+  if (!db) {
+    return { success: false, error: 'Database service is not configured.' };
+  }
+  if (!userId) {
+     return { success: false, error: 'User is not authenticated.' };
+  }
+  if (!items || items.length === 0) {
+    return { success: false, error: 'Cart is empty.' };
+  }
+
+  try {
+    const totalPrice = items.reduce((total, item) => total + item.price * item.quantity, 0);
+
+    const newOrder: Omit<Order, 'id'> = {
+      userId,
+      items: items,
+      totalPrice: totalPrice,
+      orderDate: serverTimestamp(),
+      status: 'pending', // Special status
+      paymentStatus: 'unpaid',
+      customerEmail: null, 
+      stripeCheckoutSessionId: '',
+    };
+
+    const ordersRef = collection(db, 'orders');
+    const orderDocRef = await addDoc(ordersRef, newOrder);
+
+    console.log(`✅ Pending Order ${orderDocRef.id} created successfully for user ${userId}.`);
+
+    return { success: true, orderId: orderDocRef.id, message: 'Pending order created.' };
+
+  } catch (error: any) {
+    console.error(`Failed to create pending order for user ${userId}:`, error);
+    return { success: false, error: error.message };
+  }
+}
+
 
 export async function fulfillOrder(sessionId: string) {
   if (!stripe || !db) {

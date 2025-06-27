@@ -20,6 +20,7 @@ import getStripe from '@/lib/stripe/client';
 import { collection, getDocs, query, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
+import { createPendingOrder } from '@/actions/orders';
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, clearCart, getTotalItems, getTotalPrice, addItem: addItemToCartHook } = useCart();
@@ -31,6 +32,8 @@ export default function CartPage() {
   const [promocode, setPromocode] = useState('');
   const [suggestedProducts, setSuggestedProducts] = useState<Product[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
+  const [isReadyToPay, setIsReadyToPay] = useState(false);
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
@@ -87,17 +90,49 @@ export default function CartPage() {
     } else {
       updateQuantity(productId, newQuantity);
     }
+    setIsReadyToPay(false); // Require re-confirmation if cart changes
   };
 
   const handleRemoveConfirm = (productId: string) => {
     removeItem(productId);
     toast({ title: "Item Removed", description: "Item removed from cart." });
+    setIsReadyToPay(false); // Require re-confirmation if cart changes
   };
 
   const handleClearCartConfirm = () => {
     clearCart();
     toast({ title: "Cart Cleared", description: "All items removed from your cart." });
+    setIsReadyToPay(false);
   };
+  
+  const handleReadyToPay = async () => {
+    if (!user) {
+        toast({ title: "Login Required", description: "Please log in to create an order.", variant: "destructive" });
+        router.push('/login?redirect=/cart');
+        return;
+    }
+    if (!items || items.length === 0) {
+        toast({ title: "Cart Empty", description: "Cannot create an order with an empty cart.", variant: "destructive" });
+        return;
+    }
+
+    setIsCreatingOrder(true);
+    try {
+        const result = await createPendingOrder(items, user.uid);
+        if (result.success) {
+            toast({ title: "Order Ready", description: "Your order is ready for payment. Please proceed to checkout." });
+            setIsReadyToPay(true);
+        } else {
+            throw new Error(result.error || "Failed to prepare your order.");
+        }
+    } catch (error: any) {
+        console.error("Error creating pending order:", error);
+        toast({ title: "Order Creation Failed", description: error.message, variant: "destructive" });
+    } finally {
+        setIsCreatingOrder(false);
+    }
+  };
+
 
   const handleCheckout = async () => {
     if (!user) {
@@ -349,11 +384,21 @@ export default function CartPage() {
                 </div>
               </CardContent>
               <CardFooter className="flex flex-col gap-3 pt-4">
+                 <Button
+                    size="lg"
+                    className="w-full"
+                    variant="outline"
+                    onClick={handleReadyToPay}
+                    disabled={isCreatingOrder || isReadyToPay}
+                >
+                    {isCreatingOrder && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                    {isReadyToPay ? 'Order is Ready' : isCreatingOrder ? 'Preparing Order...' : 'Ready to Pay'}
+                </Button>
                 <Button
                   size="lg"
                   className="w-full bg-green-500 hover:bg-green-600 text-white text-base py-3"
                   onClick={handleCheckout}
-                  disabled={isCheckingOut || items.length === 0}
+                  disabled={isCheckingOut || items.length === 0 || !isReadyToPay}
                 >
                   {isCheckingOut ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ShoppingCart className="mr-2 h-5 w-5" />}
                   {isCheckingOut ? 'Processing...' : 'Proceed to checkout'}
