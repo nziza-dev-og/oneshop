@@ -1,3 +1,4 @@
+
 'use server';
 
 import Stripe from 'stripe';
@@ -11,6 +12,8 @@ import {
   getDocs,
   writeBatch,
   doc,
+  getDoc,
+  updateDoc,
 } from 'firebase/firestore';
 import type { CartItem, Notification, Order } from '@/types';
 
@@ -107,67 +110,51 @@ export async function fulfillOrder(sessionId: string) {
   }
 
   try {
-    // 1. Check if order already exists to prevent duplicates
-    const ordersRef = collection(db, 'orders');
-    const existingOrderQuery = query(ordersRef, where('stripeCheckoutSessionId', '==', sessionId));
-    const existingOrderSnapshot = await getDocs(existingOrderQuery);
+    // 1. Retrieve session details from Stripe
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-    if (!existingOrderSnapshot.empty) {
-      console.log(`Order for session ${sessionId} already exists. Skipping creation.`);
-      return { success: true, message: 'Order already processed.' };
+    if (!session) {
+        throw new Error('Stripe session not found.');
     }
-
-    // 2. Retrieve session details from Stripe
-    const session = await stripe.checkout.sessions.retrieve(sessionId, {
-      expand: ['line_items.data.price.product'],
-    });
-
-    if (!session || session.payment_status !== 'paid') {
-      throw new Error('Payment not successful or session not found.');
-    }
-
-    const { userId } = session.metadata || {};
-    if (!userId) {
-      throw new Error('User ID not found in session metadata.');
-    }
-
-    // 3. Reconstruct cart items from Stripe line items
-    const lineItems = session.line_items?.data || [];
-    const purchasedItems: CartItem[] = lineItems.map((item) => {
-      const product = item.price?.product as Stripe.Product;
-      return {
-        id: product.metadata.productId || product.id,
-        name: product.name,
-        price: (item.price?.unit_amount ?? 0) / 100,
-        quantity: item.quantity ?? 0,
-        imageUrl: product.images?.[0] || '',
-        imageHint: product.metadata.imageHint || '',
-      };
-    });
-
-    if (purchasedItems.length === 0) {
-        throw new Error('No items found in Stripe session.');
-    }
-
-    // 4. Create the new order document
-    const newOrder: Omit<Order, 'id'> = {
-      userId,
-      items: purchasedItems,
-      totalPrice: session.amount_total ? session.amount_total / 100 : 0,
-      orderDate: serverTimestamp(),
-      status: 'Processing',
-      paymentStatus: session.payment_status,
-      stripeCheckoutSessionId: session.id,
-      customerEmail: session.customer_details?.email,
-    };
-
-    const orderDocRef = await addDoc(ordersRef, newOrder);
-    console.log(`✅ Order ${orderDocRef.id} created successfully for session ${session.id}.`);
     
-    // 5. Send notifications (non-blocking)
-    sendNotifications(orderDocRef.id, userId, session.customer_details?.email);
+    // 2. Get the pending order ID from metadata
+    const { orderId, userId } = session.metadata || {};
+    if (!orderId) {
+        throw new Error('Order ID not found in session metadata. Could not fulfill order.');
+    }
+    if (!userId) {
+        throw new Error('User ID not found in session metadata.');
+    }
 
-    return { success: true, message: 'Order created successfully.' };
+    // 3. Get the pending order document reference
+    const orderDocRef = doc(db, 'orders', orderId);
+    const orderDocSnap = await getDoc(orderDocRef);
+
+    if (!orderDocSnap.exists()) {
+        throw new Error(`Pending order with ID ${orderId} not found.`);
+    }
+
+    // 4. Check if the order is already processed
+    const existingOrderData = orderDocSnap.data();
+    if (existingOrderData.status !== 'pending') {
+        console.log(`Order ${orderId} has already been processed. Status: ${existingOrderData.status}`);
+        return { success: true, message: 'Order already processed.' };
+    }
+
+    // 5. Update the order document with payment details
+    await updateDoc(orderDocRef, {
+        status: 'Processing', // Change status from 'pending'
+        paymentStatus: session.payment_status,
+        stripeCheckoutSessionId: session.id,
+        customerEmail: session.customer_details?.email,
+    });
+    
+    console.log(`✅ Order ${orderId} updated successfully for session ${session.id}.`);
+
+    // 6. Send notifications (non-blocking)
+    sendNotifications(orderId, userId, session.customer_details?.email);
+
+    return { success: true, message: 'Order fulfilled successfully.' };
 
   } catch (error: any) {
     console.error(`Failed to fulfill order for session ${sessionId}:`, error);

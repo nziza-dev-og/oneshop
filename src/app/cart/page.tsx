@@ -34,6 +34,7 @@ export default function CartPage() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const [isReadyToPay, setIsReadyToPay] = useState(false);
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     setIsClient(true);
@@ -91,18 +92,21 @@ export default function CartPage() {
       updateQuantity(productId, newQuantity);
     }
     setIsReadyToPay(false); // Require re-confirmation if cart changes
+    setPendingOrderId(null); // Invalidate pending order
   };
 
   const handleRemoveConfirm = (productId: string) => {
     removeItem(productId);
     toast({ title: "Item Removed", description: "Item removed from cart." });
     setIsReadyToPay(false); // Require re-confirmation if cart changes
+    setPendingOrderId(null); // Invalidate pending order
   };
 
   const handleClearCartConfirm = () => {
     clearCart();
     toast({ title: "Cart Cleared", description: "All items removed from your cart." });
     setIsReadyToPay(false);
+    setPendingOrderId(null);
   };
   
   const handleReadyToPay = async () => {
@@ -119,12 +123,12 @@ export default function CartPage() {
     setIsCreatingOrder(true);
     try {
         // Sanitize items: remove non-serializable Firestore Timestamp before passing to Server Action.
-        // The `createdAt` field is not needed for order creation.
         const serializableItems = items.map(({ createdAt, ...item }) => item);
 
         const result = await createPendingOrder(serializableItems, user.uid);
-        if (result.success) {
+        if (result.success && result.orderId) {
             toast({ title: "Order Ready", description: "Your order is ready for payment. Please proceed to checkout." });
+            setPendingOrderId(result.orderId);
             setIsReadyToPay(true);
         } else {
             throw new Error(result.error || "Failed to prepare your order.");
@@ -144,9 +148,9 @@ export default function CartPage() {
       router.push('/login?redirect=/cart');
       return;
     }
-    if (!items || items.length === 0) {
-      toast({ title: "Cart Empty", description: "Cannot checkout with an empty cart.", variant: "destructive" });
-      return;
+    if (!pendingOrderId) {
+        toast({ title: "Order Not Ready", description: "Please click 'Ready to Pay' before proceeding.", variant: "destructive" });
+        return;
     }
     if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
       toast({ title: "Configuration Error", description: "Stripe is not configured. Checkout unavailable.", variant: "destructive" });
@@ -159,7 +163,7 @@ export default function CartPage() {
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, userId: user.uid }),
+        body: JSON.stringify({ items, userId: user.uid, orderId: pendingOrderId }),
       });
 
       if (!response.ok) {
